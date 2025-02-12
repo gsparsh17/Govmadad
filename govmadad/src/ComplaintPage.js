@@ -156,7 +156,7 @@ export default function ComplaintPage() {
             <p className="text-gray-700"><strong>📌 Department:</strong> {response.department}</p>
             <p className="text-gray-700"><strong>⚠️ Category:</strong> {response.Category}</p>
             <p className="text-gray-700"><strong>⚠️ Subcategory:</strong> {response.Subcategory}</p>
-            <p className="text-gray-700"><strong>🕒 Predicted Resolution Time:</strong> {predictedTime} days</p>
+            <p className="text-gray-700"><strong>🕒 Predicted Resolution Time:</strong> {predictedTime}</p>
             <p className="text-gray-700"><strong>⚠️ Urgency:</strong> {response.urgent}</p>
             {response.imageCaption && (
               <p className="text-gray-700"><strong>🖼️ Image Caption:</strong> {response.imageCaption}</p>
