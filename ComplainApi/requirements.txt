@@ -1,0 +1,12 @@
+python-dotenv
+langchain
+pyproject-toml
+langchain_groq
+langchain_community
+pillow
+transformers
+torchvision
+torch
+flask
+flask-cors
+flask-caching
