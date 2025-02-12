@@ -21,6 +21,7 @@ import io
 import base64
 import os
 import nltk
+import math
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 matplotlib.use('Agg')
@@ -232,6 +233,7 @@ def predict():
             subcategory_num = subcategory_encoder.transform([data["subcategory"]])[0]
         
             pincode_num = pincode_encoder.transform([data["pincode"]])[0]
+            
 
         except ValueError as e:
             return jsonify({"error": str(e)}), 400
@@ -259,7 +261,7 @@ def predict():
         prediction = model.predict(np.array(input_data))[0]  
         
         predicted_days = math.ceil(prediction)  # Always rounds up
-
+        print(f"Predicted resolution time: {predicted_days} days")
 
         return jsonify({"predicted_resolution_time": f"{predicted_days} days"})
 

@@ -72,9 +72,9 @@ export default function ComplaintPage() {
         console.log("Predicting resolution time...");
         
         const predictRes = await axios.post("http://localhost:5000/predict", { 
-            category, 
-            subcategory, 
-            pincode  // ✅ Added pincode
+            category: String(category), 
+            subcategory: String(subcategory), 
+            pincode: String(pincode)
         });
 
         console.log("Prediction Response:", predictRes.data);
