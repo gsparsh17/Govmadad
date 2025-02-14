@@ -3,6 +3,7 @@ import HomePage from "./HomePage";
 import AdminPage from "./AdminPage";
 import ComplaintPage from "./ComplaintPage";
 import ProfilePage from "./ProfilePage";
+import ResponsePage from "./ResponsePage";
 
 function App() {
   return (
@@ -12,6 +13,7 @@ function App() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/complaint" element={<ComplaintPage />} />
+        <Route path="/response" element={<ResponsePage />} />
       </Routes>
     </Router>
   );
