@@ -14,7 +14,16 @@ import { Label } from "./components/ui/label"
 import { useNavigate } from "react-router-dom";
 
 const categories = ["Corruption", "Crime", "Electricity Issue", "Public Transport", "Road Maintenance", "Water Supply"]
-const subcategories = ["Bribery", "Theft", "Power Outage", "Fare Overcharging", "Potholes", "No Water Supply"]
+
+const subcategories = [
+  "Billing Issue", "Blocked Drainage", "Bribery", "Chain Snatching",
+  "Contaminated Water", "Cyber Crime", "Fare Overcharging",
+  "Favoritism in Govt Services", "Fraud in Public Distribution",
+  "Irregular Metro Services", "Land Registration Scam", "Low Pressure",
+  "Meter Fault", "No Water Supply", "Overcrowded Buses", "Pipeline Leakage",
+  "Poor Bus Condition", "Potholes", "Power Outage", "Road Safety Issues",
+  "Robbery", "Theft", "Unfinished Roadwork", "Voltage Fluctuation"
+];
 
 export default function ComplaintPage() {
   const [complaint, setComplaint] = useState("")
@@ -57,41 +66,73 @@ export default function ComplaintPage() {
 
       // Save complaint to Firebase
 
-      const predictRes = await axios.post("http://localhost:5000/predict", {
-        category: String(category),
-        subcategory: String(subcategory),
-        pincode: String(pincode),
-      });
+      const finalCategory = category === "" ? res.data.Category : category;
+      const finalSubCategory = subcategory === "" ? res.data.Subcategory : subcategory;
 
-      const responseData = {
-        response: res.data.department,
-        department,
-        urgent: res.data.urgent,
-        category: res.data.Category,
-        subcategory: res.data.Subcategory,
-        imageCaption,
-        predictedTime: predictRes.data.predicted_resolution_time,
+      // const findClosestMatch = (input, array) => {
+      //   return array.find(item => item.toLowerCase().includes(input.toLowerCase())) || input;
+      // };
+      
+      // Ensure category and subcategory match the predefined values
+      // const finalCategory1 = findClosestMatch(finalCategory, categories);
+      // const finalSubCategory1 = findClosestMatch(finalSubCategory, subcategories);
+      const extractSubcategory = (text) => {
+        const regex = new RegExp(subcategories.join("|"), "i"); // Create regex pattern from subcategories list
+        const match = text.match(regex);
+        return match ? match[0] : "Unknown Subcategory";
       };
-      console.log(responseData);
-      await addDoc(collection(db, "complaints"), {
-        Complaint: complaint,
-        Category: category,
-        Subcategory: subcategory,
-        Pincode: pincode,
-        Area: area,
-        Date: date,
-        UID: uid,
-        Status: "Pending",
-        Response: res.data.department,
-        Department: department,
-        Urgency: res.data.urgent,
-        Phone: "Fetched From UID",
-        ImageCaption: imageCaption,
-        FiledBy: "Fetched From UID",
-        ComplaintDate: new Date(),
-        PredictedTime: predictRes.data.predicted_resolution_time,
-        RemainingDays: predictRes.data.predicted_resolution_time,
-      });
+      const extractcategory = (text) => {
+        const regex = new RegExp(categories.join("|"), "i"); // Create regex pattern from subcategories list
+        const match = text.match(regex);
+        return match ? match[0] : "Unknown Ccategory";
+      };
+      
+      // Get the extracted subcategory
+      const finalSubCategory1 = extractSubcategory(finalSubCategory);
+      const finalCategory1 = extractcategory(finalCategory);
+      
+      console.log("Final Subcategory:", finalSubCategory1);
+
+      console.log(finalCategory, finalSubCategory);
+
+const predictRes = await axios.post("http://localhost:5000/predict", {
+  category: String(finalCategory1),
+  subcategory: String(finalSubCategory1),
+  pincode: String(pincode),
+});
+
+const responseData = {
+  response: res.data.department,
+  department,
+  urgent: res.data.urgent,
+  category: finalCategory1,
+  subcategory: finalSubCategory1,
+  imageCaption,
+  predictedTime: predictRes.data.predicted_resolution_time,
+};
+
+console.log(responseData);
+
+await addDoc(collection(db, "complaints"), {
+  Complaint: complaint,
+  Category: finalCategory1,
+  Subcategory: finalSubCategory1,
+  Pincode: pincode,
+  Area: area,
+  Date: date,
+  UID: uid,
+  Status: "Pending",
+  Response: res.data.department,
+  Department: department,
+  Urgency: res.data.urgent,
+  Phone: "Fetched From UID",
+  ImageCaption: imageCaption,
+  FiledBy: "Fetched From UID",
+  ComplaintDate: new Date(),
+  PredictedTime: predictRes.data.predicted_resolution_time,
+  RemainingDays: predictRes.data.predicted_resolution_time,
+});
+
 
       // Redirect to Response Page with Data
       navigate("/response", { state: responseData });

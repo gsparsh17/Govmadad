@@ -64,8 +64,15 @@ with open("pincode_encoder.pkl", "rb") as f:
 
 
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allow all origins
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+    
 load_dotenv()
 
 groq_api_key = os.getenv("GROQ_API_KEY")
@@ -188,11 +195,18 @@ def handle_image_caption():
         return jsonify({"error": "Image file is required"}), 400
     
     image_file = request.files['image']
-    image_path = f"./tmp/{image_file.filename}"
-    image_file.save(image_path)
-    caption = generate_caption(image_path)
-    os.remove(image_path)
     
+    # Ensure tmp directory exists
+    tmp_dir = "./tmp"
+    os.makedirs(tmp_dir, exist_ok=True)  # Creates the directory if it doesn't exist
+    
+    image_path = os.path.join(tmp_dir, image_file.filename)
+    image_file.save(image_path)
+
+    caption = generate_caption(image_path)
+    
+    os.remove(image_path)  # Clean up after processing
+
     response = jsonify({"caption": caption})
     response.headers.add("Access-Control-Allow-Origin", "*")  # Add CORS header here
     return response
