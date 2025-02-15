@@ -73,11 +73,11 @@ Govmadad/
    
    ### Steps to Generate Groq API Key
 
--Go to Groq's API Dashboard.
--Sign in or create an account.
--Navigate to the API section.
--Click on "Generate API Key."
--Copy the generated API key and store it securely.
+   - Go to Groq's API Dashboard.
+   - Sign in or create an account.
+   - Navigate to the API section.
+   - Click on "Generate API Key."
+   - Copy the generated API key and store it securely.
 
    ```env
    GROQ_API_KEY=your_api_key_here
