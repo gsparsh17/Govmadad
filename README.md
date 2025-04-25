@@ -229,7 +229,5 @@ This project is licensed under the MIT License.
 
 ---
 
-**Maintainer:** [Your Name](https://github.com/yourusername)
-
 🚀 Happy Coding! 🚀
 
