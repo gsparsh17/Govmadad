@@ -10,3 +10,8 @@ torch
 flask
 flask-cors
 flask-caching
+firebase-admin
+pandas
+tabulate
+langchain_google_genai
+faiss-cpu

@@ -1,7 +1,13 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file, render_template_string
 from flask_cors import CORS
 import os
+import firebase_admin
+from firebase_admin import credentials, firestore
+from langchain.schema import Document
 from langchain_groq import ChatGroq
+from langchain.chains import RetrievalQA
+from langchain_community.vectorstores import FAISS
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from transformers import BlipProcessor, BlipForConditionalGeneration
 from PIL import Image
@@ -11,7 +17,6 @@ import pickle
 import numpy as np
 import pandas as pd
 import xgboost as xgb
-from flask import Flask, jsonify, render_template_string
 import pandas as pd
 import numpy as np
 import matplotlib
@@ -19,10 +24,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import io
 import base64
-import os
 import nltk
 import math
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
+
+cred = credentials.Certificate("govmadad-firebase-adminsdk-fbsvc-8999227f8b.json")
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+CSV_PATH = "complaints.csv"
+
 
 matplotlib.use('Agg')
 
@@ -33,24 +43,20 @@ df = df_.drop_duplicates(subset=["description"]).copy()
 # Function to drop random complaints from each district
 def drop_random_complaints(group):
     if len(group) > 1:
-        drop_percentage = np.random.uniform(0.05, 0.6)  # Drop between 5%-30% randomly
+        drop_percentage = np.random.uniform(0.05, 0.6)  
         drop_count = int(len(group) * drop_percentage)
-        return group.sample(frac=1).iloc[drop_count:]  # Shuffle & drop
+        return group.sample(frac=1).iloc[drop_count:]  
     return group
 
-# Apply the function
 df_filtered = df.groupby("district", group_keys=False).apply(drop_random_complaints)
 
-# Get complaint counts per district
 hotspots = df_filtered["district"].value_counts().reset_index()
 hotspots.columns = ["district", "complaint_count"]
 
-# Load trained XGBoost model
-model_path = "xgboost_model.pkl"  # Update with actual model path
+model_path = "xgboost_model.pkl"  
 with open(model_path, "rb") as f:
     model = pickle.load(f)
 
-# Load category encoders
 with open("category_encoder.pkl", "rb") as f:
     category_encoder = pickle.load(f)
 
@@ -76,6 +82,7 @@ def add_cors_headers(response):
 load_dotenv()
 
 groq_api_key = os.getenv("GROQ_API_KEY")
+os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 llm = ChatGroq(groq_api_key=groq_api_key, model_name="llama-3.1-8b-instant")
 
 urgency_prompt = ChatPromptTemplate.from_template(
@@ -142,6 +149,43 @@ def generate_caption(image_path):
         out = blip_model.generate(**inputs)
     caption = processor.decode(out[0], skip_special_tokens=True)
     return caption
+
+
+# Convert DataFrame to Markdown
+def df_to_markdown(df):
+    return df.to_markdown(index=False)
+
+# Load all data from Firebase and save as permanent CSV
+def fetch_and_save_data():
+    docs = db.collection(u"complaints").stream()
+    rows = [doc.to_dict() for doc in docs]
+    df = pd.DataFrame(rows)
+    df.to_csv(CSV_PATH, index=False)
+    return df
+
+# Load the main CSV into memory (once)
+if not os.path.exists(CSV_PATH):
+    print("📥 Downloading data from Firebase...")
+    df_main = fetch_and_save_data()
+else:
+    df_main = pd.read_csv(CSV_PATH)
+    print("📂 Loaded local CSV.")
+
+# Filter by department and create LangChain document
+def create_department_doc(df, department):
+    if 'Department' not in df.columns:
+        return None
+    filtered_df = df[df['Department'] == department]
+    if filtered_df.empty:
+        return None
+    return Document(page_content=df_to_markdown(filtered_df), metadata={"department": department})
+
+# Create QA chain
+def get_qa_chain(doc):
+    vectorstore = FAISS.from_documents([doc], GoogleGenerativeAIEmbeddings(model="models/embedding-001"))
+    retriever = vectorstore.as_retriever()
+    return RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
+
 
 nltk.download('vader_lexicon')
 sid = SentimentIntensityAnalyzer()
@@ -210,6 +254,36 @@ def handle_image_caption():
     response = jsonify({"caption": caption})
     response.headers.add("Access-Control-Allow-Origin", "*")  # Add CORS header here
     return response
+
+
+@app.route('/ask', methods=['POST'])
+def ask():
+    data = request.json
+    department = data.get('department')
+    question = data.get('question')
+
+    if not department or not question:
+        return jsonify({"error": "Provide both 'department' and 'question'"}), 400
+
+    try:
+        doc = create_department_doc(df_main, department)
+        if not doc:
+            return jsonify({"error": f"No data found for department '{department}'"}), 404
+
+        qa = get_qa_chain(doc)
+        answer = qa.run(question)
+
+        return jsonify({"answer": answer})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/download_csv', methods=['GET'])
+def download_csv():
+    if not os.path.exists(CSV_PATH):
+        return jsonify({"error": "CSV not available"}), 404
+    return send_file(CSV_PATH, mimetype='text/csv', as_attachment=True, download_name='complaints.csv')
+
 
 @app.route('/predict', methods=['POST'])
 def predict():
