@@ -232,7 +232,6 @@ return (
                   value={complaint}
                   onChange={(e) => setComplaint(e.target.value)}
                   rows={4}
-                  required
                 />
               </div>
 

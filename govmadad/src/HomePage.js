@@ -8,10 +8,10 @@ export default function HomePage() {
   return (
     <div className={`${darkMode ? "bg-gray-900 text-white" : "bg-blue-50 text-gray-900"} min-h-screen flex flex-col`}>
       {/* Header */}
-      <header className="bg-blue-900 text-white p-6 shadow-lg flex justify-between items-center rounded-b-xl">
-        <h1 className="text-3xl font-bold tracking-wide">Government Complaint Portal</h1>
+      <header className="bg-blue-500 text-white p-6 shadow-lg flex justify-between items-center rounded-b-xl">
+        <h1 className="text-3xl font-bold tracking-wide">Jansunwai Samadhan</h1>
         <div className="flex items-center space-x-4">
-          <Link to="/profile" className="bg-white text-blue-900 px-4 py-2 rounded-md hover:bg-gray-200 transition">
+          <Link to="/profile" className="bg-white text-blue-500 px-4 py-2 rounded-md hover:bg-gray-200 transition">
             Profile
           </Link>
           <div className="flex items-center space-x-2">
@@ -29,10 +29,10 @@ export default function HomePage() {
 
           {/* Buttons */}
           <div className="mt-6 flex flex-col md:flex-row gap-4 justify-center">
-            <Link to="/complaint" className="bg-blue-700 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition duration-200 shadow-md">
+            <Link to="/complaint" className="bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-800 transition duration-200 shadow-md">
               File a Complaint
             </Link>
-            <Link to="/admin" className="bg-gray-700 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition duration-200 shadow-md">
+            <Link to="/admin" className="bg-green-500 text-white px-6 py-3 rounded-lg hover:bg-gray-800 transition duration-200 shadow-md">
               Admin Panel
             </Link>
           </div>
@@ -40,7 +40,7 @@ export default function HomePage() {
       </main>
 
       {/* Footer */}
-      <footer className="bg-blue-900 text-white text-center p-4 rounded-t-xl">
+      <footer className="bg-blue-500 text-white text-center p-4 rounded-t-xl">
         <p>&copy; 2025 Government Complaint Portal. All Rights Reserved.</p>
       </footer>
     </div>
