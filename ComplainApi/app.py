@@ -5,7 +5,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from langchain.schema import Document
 from langchain_groq import ChatGroq
-from langchain.chains import RetrievalQA
+from langchain.chains import RetrievalQA, LLMChain
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
@@ -36,8 +36,7 @@ db = firestore.client()
 CSV_PATH = "complaints.csv"
 
 
-matplotlib.use('Agg')
-
+# matplotlib.use('Agg')
 df_ = pd.read_csv("synthetic_igrs_expanded_2014_2024_unique_desc.csv")
 
 df = df_.drop_duplicates(subset=["description"]).copy()
@@ -84,7 +83,9 @@ def add_cors_headers(response):
 load_dotenv()
 
 groq_api_key = os.getenv("GROQ_API_KEY")
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
+embedding_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
 llm = ChatGroq(groq_api_key=groq_api_key, model_name="llama-3.1-8b-instant")
 
 urgency_prompt = ChatPromptTemplate.from_template(
@@ -121,6 +122,23 @@ subcategory_prompt = ChatPromptTemplate.from_template("""
     Complaint: {input}
 """)
 
+chat_bot_prompt = ChatPromptTemplate.from_template(
+    '''
+You are an internal assistant designed to support department officers in resolving complaints efficiently.
+
+Use the following information to generate a **concise and actionable response** for the responsible officer:
+- Department: {department}
+- Related Complaint: {complaint}
+- Reference Context from Past Complaints: {context}
+
+Provide a clear, brief summary of the situation and suggest any immediate action if applicable. Avoid unnecessary details.
+
+Response:
+'''
+)
+
+
+
 def process_complaint(complaint):
     main_query = query_prompt.invoke({'input': complaint})
     response = llm.invoke(main_query)
@@ -154,8 +172,6 @@ def generate_caption(image_path):
 
 
 # Convert DataFrame to Markdown
-def df_to_markdown(df):
-    return df.to_markdown(index=False)
 
 # Load all data from Firebase and save as permanent CSV
 def fetch_and_save_data():
@@ -174,19 +190,7 @@ else:
     print("📂 Loaded local CSV.")
 
 # Filter by department and create LangChain document
-def create_department_doc(df, department):
-    if 'Department' not in df.columns:
-        return None
-    filtered_df = df[df['Department'] == department]
-    if filtered_df.empty:
-        return None
-    return Document(page_content=df_to_markdown(filtered_df), metadata={"department": department})
 
-# Create QA chain
-def get_qa_chain(doc):
-    vectorstore = FAISS.from_documents([doc], GoogleGenerativeAIEmbeddings(model="models/embedding-001"))
-    retriever = vectorstore.as_retriever()
-    return RetrievalQA.from_chain_type(llm=llm, retriever=retriever)
 
 
 nltk.download('vader_lexicon')
@@ -261,11 +265,10 @@ def handle_image_caption():
 @app.route('/ask', methods=['POST'])
 def ask():
     data = request.get_json()
-    
-    # Check if data is None (invalid JSON sent)
+
     if data is None:
         return jsonify({"error": "Invalid JSON received"}), 400
-    
+
     department = data.get('department')
     question = data.get('question')
 
@@ -273,17 +276,48 @@ def ask():
         return jsonify({"error": "Provide both 'department' and 'question'"}), 400
 
     try:
-        doc = create_department_doc(df_main, department)
-        if not doc:
-            return jsonify({"error": f"No data found for department '{department}'"}), 404
+        department_df = df_main[df_main['Department'].str.lower() == department.lower()]
+        
+        if department_df.empty:
+            return jsonify({"error": f"No complaints found for department '{department}'"}), 404
 
-        qa = get_qa_chain(doc)
-        answer = qa.run(question)
+        docs = [Document(page_content=row['Complaint']) for idx, row in department_df.iterrows()]
 
-        return jsonify({"answer": answer})
+        vectorstore = FAISS.from_documents(
+            docs,
+            GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+        )
+        retriever = vectorstore.as_retriever()
+
+        # Manually retrieve relevant documents
+        retrieved_docs = retriever.get_relevant_documents(question)
+        context = "\n".join([doc.page_content for doc in retrieved_docs]) if retrieved_docs else "No relevant complaints found."
+
+        # You can pick top complaint for "complaint" variable
+        top_complaint = retrieved_docs[0].page_content if retrieved_docs else "No matching complaint found."
+
+        # Now manually create a LLMChain with your custom prompt
+        chain = LLMChain(
+            llm=llm,
+            prompt=chat_bot_prompt
+        )
+
+        # Run the chain with all needed inputs
+        answer = chain.invoke({
+            "department": department,
+            "complaint": top_complaint,
+            "context": context
+        })
+
+        return jsonify({"answer": answer["text"]})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+
+
+
 
 @app.route('/download_csv', methods=['GET'])
 def download_csv():
@@ -414,7 +448,7 @@ def plot_hotspots():
     #     img_base64=img_base64
     # )
 
-     # Convert to base64
+    #  Convert to base64
     # img_base64 = base64.b64encode(img.read()).decode()
 
     # return jsonify({"image": img_base64})
