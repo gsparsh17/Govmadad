@@ -542,7 +542,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
               >
                 <option value="All">All Departments</option>
                 <option value="Healthcare Ministry">Healthcare Ministry</option>
-                <option value="Police">Police</option>
+                <option value="the Police Department">the Police Department</option>
                 <option value="Public Works Department (PWD)">PWD</option>
                 <option value="Food Quality Ministry">Food Quality Ministry</option>
                 <option value="Cleaning and Welfare Ministry">Cleaning and Welfare</option>
@@ -638,7 +638,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
               disabled={chatMessages.length > 0}
             >
               <option value="Healthcare Ministry">Healthcare Ministry</option>
-              <option value="Police">Police</option>
+              <option value="the Police Department">the Police Department</option>
               <option value="Public Works Department (PWD)">PWD</option>
               <option value="Food Quality Ministry">Food Quality Ministry</option>
               <option value="Cleaning and Welfare Ministry">Cleaning and Welfare</option>
