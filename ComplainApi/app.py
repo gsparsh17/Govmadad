@@ -125,13 +125,13 @@ subcategory_prompt = ChatPromptTemplate.from_template("""
 chat_bot_prompt = ChatPromptTemplate.from_template(
     '''
 You are an internal assistant designed to support department officers in resolving complaints efficiently.
-
-Use the following information to generate a **concise and actionable response** for the responsible officer:
+If officer does not mention anything then briefly summarize the complaint and provide a response.
+Use the following information to answer all the queries of the officer :
 - Department: {department}
 - Related Complaint: {complaint}
-- Reference Context from Past Complaints: {context}
+- Officer query: {context}
 
-Provide a clear, brief summary of the situation and suggest any immediate action if applicable. Avoid unnecessary details.
+Provide a clear, brief summary of the situation. Avoid unnecessary details.
 
 Response:
 '''
