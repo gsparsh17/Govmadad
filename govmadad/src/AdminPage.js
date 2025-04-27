@@ -7,7 +7,7 @@ import jsPDF from "jspdf";
 import { Bar, Pie, Line } from "react-chartjs-2";
 import { Chart, registerables } from 'chart.js';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faChartBar, faTimes, faFilePdf, faComment } from '@fortawesome/free-solid-svg-icons';
+import { faBell, faChartBar, faTimes, faFilePdf, faComment, faRobot } from '@fortawesome/free-solid-svg-icons';
 
 // Register Chart.js components
 Chart.register(...registerables);
@@ -214,6 +214,41 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
       }]
     };
   };
+
+  function generateFollowUpQuestions(lastMessage) {
+    const lowerMessage = lastMessage.toLowerCase();
+    const questions = [];
+    
+    if (lowerMessage.includes("complaint") || lowerMessage.includes("issue")) {
+      questions.push(
+        "Where is this located?",
+        "What actions should I take?",
+        "Who is handling this?",
+        "Show me similar complaints"
+      );
+    }
+    
+    if (lowerMessage.includes("task") || lowerMessage.includes("work")) {
+      questions.push(
+        "What's the deadline?",
+        "Who else is working on this?",
+        "Show me related documents",
+        "What's the next step?"
+      );
+    }
+    
+    // Default suggestions
+    if (questions.length === 0) {
+      questions.push(
+        "Tell me more",
+        "Give me details",
+        "What are the options?",
+        "Show me another one"
+      );
+    }
+    
+    return questions.slice(0, 3); // Return max 3 follow-ups
+  }
 
   const getTrendData = () => {
     // Group complaints by week with proper date validation
@@ -568,7 +603,8 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
       </div>
 
       {showChatAssistant && (
-  <div className="fixed bottom-4 right-4 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-300 dark:border-gray-600 z-50">
+  <div className="fixed bottom-4 right-4 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-300 dark:border-gray-600 z-50 flex flex-col" style={{ height: '600px' }}>
+    {/* Header */}
     <div className="flex justify-between items-center bg-blue-600 dark:bg-blue-800 text-white p-3 rounded-t-lg">
       <h3 className="font-semibold">Department Assistant</h3>
       <button 
@@ -579,107 +615,160 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
       </button>
     </div>
     
-    <div className="p-4 h-96 overflow-y-auto">
-      <div className="mb-4">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-          Select Department:
-        </label>
-        <select
-          value={selectedChatDepartment}
-          onChange={(e) => setSelectedChatDepartment(e.target.value)}
-          className="w-full p-2 border rounded-md bg-white dark:bg-gray-700 dark:text-white"
-        >
-          <option value="Healthcare Ministry">Healthcare Ministry</option>
-          <option value="Police">Police</option>
-          <option value="Public Works Department (PWD)">PWD</option>
-          <option value="Food Quality Ministry">Food Quality Ministry</option>
-          <option value="Cleaning and Welfare Ministry">Cleaning and Welfare</option>
-          <option value="Traffic Department">Traffic Department</option>
-        </select>
-      </div>
-      
-      <div className="space-y-3 mb-4">
-        {chatMessages.map((msg, index) => (
-          <div 
-            key={index} 
-            className={`p-3 rounded-lg ${msg.sender === 'user' 
-              ? 'bg-blue-100 dark:bg-blue-900 ml-auto max-w-xs' 
-              : 'bg-gray-100 dark:bg-gray-700 mr-auto max-w-xs'}`}
-          >
-            {msg.text}
+    {/* Chat Area */}
+    <div className="flex-1 p-4 overflow-y-auto">
+      {chatMessages.length === 0 ? (
+        // Welcome Screen
+        <div className="flex flex-col items-center justify-center h-full text-center">
+          <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-full mb-4">
+            <FontAwesomeIcon icon={faRobot} className="text-blue-600 dark:text-blue-300 text-4xl" />
           </div>
-        ))}
-        {isLoading && (
-          <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg mr-auto max-w-xs">
-            <div className="flex space-x-2">
-              <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></div>
-              <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{animationDelay: '0.2s'}}></div>
-              <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{animationDelay: '0.4s'}}></div>
+          <h3 className="text-xl font-semibold mb-2">Welcome, Department Official!</h3>
+          <p className="text-gray-600 dark:text-gray-300 mb-6">
+            I'm here to help you manage complaints and department operations. How can I assist you today?
+          </p>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Department:
+            </label>
+            <select
+              value={selectedChatDepartment}
+              onChange={(e) => setSelectedChatDepartment(e.target.value)}
+              className="w-full p-2 border rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+              disabled={chatMessages.length > 0}
+            >
+              <option value="Healthcare Ministry">Healthcare Ministry</option>
+              <option value="Police">Police</option>
+              <option value="Public Works Department (PWD)">PWD</option>
+              <option value="Food Quality Ministry">Food Quality Ministry</option>
+              <option value="Cleaning and Welfare Ministry">Cleaning and Welfare</option>
+              <option value="Traffic Department">Traffic Department</option>
+            </select>
+          </div>
+          <div className="w-full space-y-2">
+            <h4 className="font-medium text-gray-700 dark:text-gray-200">Quick Questions:</h4>
+            <button
+              onClick={() => {
+                setCurrentMessage("What are the complaints registered in the last few hours?");
+                // setChatMessages([...chatMessages, 
+                //   { sender: 'user', text: "What are the complaints registered in the last few hours?" }
+                // ]);
+              }}
+              className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-left hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+            >
+              What are the new complaints?
+            </button>
+            <button
+              onClick={() => {
+                setCurrentMessage("Which complaint should I prioritize first?");
+                // setChatMessages([...chatMessages, 
+                //   { sender: 'user', text: "Which complaint should I prioritize first?" }
+                // ]);
+              }}
+              className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-left hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+            >
+              What should I prioritize?
+            </button>
+            <button
+              onClick={() => {
+                setCurrentMessage("What's on my task list for today?");
+                // setChatMessages([...chatMessages, 
+                //   { sender: 'user', text: "What's on my task list for today?" }
+                // ]);
+              }}
+              className="w-full p-2 bg-gray-100 dark:bg-gray-700 rounded-lg text-left hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+            >
+              My today's tasks
+            </button>
+          </div>
+        </div>
+      ) : (
+        // Chat Conversation
+        <div className="space-y-3">
+          
+          {chatMessages.map((msg, index) => (
+            <div key={index}>
+              <div 
+                className={`p-3 rounded-lg ${msg.sender === 'user' 
+                  ? 'bg-blue-100 dark:bg-blue-900 ml-auto max-w-xs' 
+                  : 'bg-gray-100 dark:bg-gray-700 mr-auto max-w-xs'}`}
+              >
+                {msg.text}
+              </div>
+              
+              {/* Follow-up suggestions after assistant messages */}
+              {msg.sender === 'assistant' && index === chatMessages.length - 1 && (
+                <div className="flex flex-wrap gap-2 mt-2 ml-2">
+                  {generateFollowUpQuestions(msg.text).map((question, qIndex) => (
+                    <button
+                      key={qIndex}
+                      onClick={() => {
+                        setCurrentMessage(question);
+                        // setChatMessages([...chatMessages, { sender: 'user', text: question }]);
+                      }}
+                      className="text-xs bg-gray-200 dark:bg-gray-600 hover:bg-gray-300 dark:hover:bg-gray-500 px-2 py-1 rounded-md transition"
+                    >
+                      {question}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          </div>
-        )}
-      </div>
+          ))}
+          
+          {isLoading && (
+            <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg mr-auto max-w-xs">
+              <div className="flex space-x-2">
+                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></div>
+                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{animationDelay: '0.4s'}}></div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
     
+    {/* Input Area */}
     <div className="p-3 border-t border-gray-300 dark:border-gray-600">
-    <form 
-  onSubmit={async (e) => {
-    e.preventDefault();
-    if (!currentMessage.trim()) return;
-    
-    // Add user message to chat
-    const userMessage = { sender: 'user', text: currentMessage };
-    setChatMessages([...chatMessages, userMessage]);
-    setCurrentMessage("");
-    setIsLoading(true);
-    
-    try {
-      // Call your Flask API
-      const response = await fetch('http://localhost:5000/ask', {  // Make sure this matches your Flask server URL
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          department: selectedChatDepartment,
-          question: currentMessage
-        }),
-      });
-      
-      // First check if the response is JSON
-      const contentType = response.headers.get('content-type');
-      if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
-        throw new Error(`Expected JSON but got: ${text.substring(0, 100)}...`);
-      }
-      
-      const data = await response.json();
-      
-      if (response.ok) {
-        setChatMessages(prev => [...prev, { sender: 'assistant', text: data.answer }]);
-      } else {
-        setChatMessages(prev => [...prev, { 
-          sender: 'assistant', 
-          text: `Error: ${data.error || 'Failed to get response'}` 
-        }]);
-      }
-    } catch (error) {
-      console.error('API call failed:', error);
-      setChatMessages(prev => [...prev, { 
-        sender: 'assistant', 
-        text: `Error connecting to assistant: ${error.message}`
-      }]);
-    } finally {
-      setIsLoading(false);
-    }
-  }}
-  className="flex"
->
+      <form onSubmit={async (e) => {
+        e.preventDefault();
+        if (!currentMessage.trim()) return;
+        
+        const userMessage = { sender: 'user', text: currentMessage };
+        setChatMessages([...chatMessages, userMessage]);
+        setCurrentMessage("");
+        setIsLoading(true);
+        
+        try {
+          const response = await fetch('http://localhost:5000/ask', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ department: selectedChatDepartment, question: currentMessage }),
+          });
+          
+          const contentType = response.headers.get('content-type');
+          if (!contentType?.includes('application/json')) {
+            const text = await response.text();
+            throw new Error(`Expected JSON but got: ${text.substring(0, 100)}...`);
+          }
+          
+          const data = await response.json();
+          setChatMessages(prev => [...prev, { sender: 'assistant', text: data.answer || data.error }]);
+        } catch (error) {
+          setChatMessages(prev => [...prev, { 
+            sender: 'assistant', 
+            text: `Error: ${error.message}`
+          }]);
+        } finally {
+          setIsLoading(false);
+        }
+      }} className="flex">
         <input
           type="text"
           value={currentMessage}
           onChange={(e) => setCurrentMessage(e.target.value)}
-          placeholder="Ask about department procedures..."
+          placeholder="Type your question..."
           className="flex-grow p-2 border rounded-l-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
           disabled={isLoading}
         />

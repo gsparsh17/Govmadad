@@ -126,7 +126,7 @@ export default function ComplaintPage() {
 
           <input type="file" accept="image/*" className="w-full p-2 border rounded-md" onChange={(e) => setImage(e.target.files[0])} />
 
-          <button type="submit" className={`w-full py-3 rounded-md text-white font-semibold transition ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"}`} disabled={loading}>
+          <button type="submit" className={`w-full py-3 rounded-md text-white font-semibold transition ${loading ? "bg-gray-400 cursor-not-allowed" : "bg-blue-500 hover:bg-blue-700"}`} disabled={loading}>
             {loading ? "Submitting..." : "Submit Complaint"}
           </button>
         </form>
