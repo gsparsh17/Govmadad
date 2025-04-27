@@ -27,6 +27,8 @@ import base64
 import nltk
 import math
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
+import ssl
+ssl._create_default_https_context = ssl._create_unverified_context
 
 cred = credentials.Certificate("govmadad-firebase-adminsdk-fbsvc-8999227f8b.json")
 firebase_admin.initialize_app(cred)
