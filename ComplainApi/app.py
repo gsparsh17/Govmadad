@@ -260,7 +260,12 @@ def handle_image_caption():
 
 @app.route('/ask', methods=['POST'])
 def ask():
-    data = request.json
+    data = request.get_json()
+    
+    # Check if data is None (invalid JSON sent)
+    if data is None:
+        return jsonify({"error": "Invalid JSON received"}), 400
+    
     department = data.get('department')
     question = data.get('question')
 

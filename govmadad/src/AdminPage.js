@@ -7,7 +7,7 @@ import jsPDF from "jspdf";
 import { Bar, Pie, Line } from "react-chartjs-2";
 import { Chart, registerables } from 'chart.js';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faBell, faDownload, faChartBar, faTimes, faFilePdf } from '@fortawesome/free-solid-svg-icons';
+import { faBell, faChartBar, faTimes, faFilePdf, faComment } from '@fortawesome/free-solid-svg-icons';
 
 // Register Chart.js components
 Chart.register(...registerables);
@@ -26,6 +26,12 @@ export default function AdminPage() {
   const [sortByRemainingDays, setSortByRemainingDays] = useState("none");
   const [reportData, setReportData] = useState(null);
   const [activeChart, setActiveChart] = useState("department");
+  // Add these to your existing state declarations
+const [showChatAssistant, setShowChatAssistant] = useState(false);
+const [chatMessages, setChatMessages] = useState([]);
+const [currentMessage, setCurrentMessage] = useState("");
+const [isLoading, setIsLoading] = useState(false);
+const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare Ministry");
 
   useEffect(() => {
     const fetchComplaints = () => {
@@ -266,24 +272,32 @@ export default function AdminPage() {
 
   return (
     <div className={`${darkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-900"} min-h-screen p-6`}>
-      <header className="bg-blue-900 text-white p-4 shadow-lg flex justify-between items-center rounded-lg">
-        <h1 className="text-xl font-bold tracking-wide">Complaint Management Dashboard</h1>
-        <div className="flex items-center space-x-3">
-          <button 
-            onClick={() => setShowNotifications(!showNotifications)} 
-            className="relative p-2 rounded-full hover:bg-blue-800 transition"
-          >
-            <FontAwesomeIcon icon={faBell} />
-            {notifications.length > 0 && (
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                {notifications.length}
-              </span>
-            )}
-          </button>
-          <span className="text-sm">Dark Mode</span>
-          <Switch checked={darkMode} onCheckedChange={() => setDarkMode(!darkMode)} />
-        </div>
-      </header>
+<header className="bg-blue-900 text-white p-4 shadow-lg flex justify-between items-center rounded-lg">
+  <h1 className="text-xl font-bold tracking-wide">Complaint Management Dashboard</h1>
+  <div className="flex items-center space-x-3">
+    <button 
+      onClick={() => setShowChatAssistant(!showChatAssistant)} 
+      className="bg-green-600 hover:bg-green-700 px-3 py-1 rounded-md flex items-center"
+    >
+      <span className="mr-2">Ask Assistant</span>
+      <FontAwesomeIcon icon={faComment} />
+    </button>
+    
+    <button 
+      onClick={() => setShowNotifications(!showNotifications)} 
+      className="relative p-2 rounded-full hover:bg-blue-800 transition"
+    >
+      <FontAwesomeIcon icon={faBell} />
+      {notifications.length > 0 && (
+        <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+          {notifications.length}
+        </span>
+      )}
+    </button>
+    <span className="text-sm">Dark Mode</span>
+    <Switch checked={darkMode} onCheckedChange={() => setDarkMode(!darkMode)} />
+  </div>
+</header>
 
       {showNotifications && (
         <div className="absolute right-4 top-16 bg-white shadow-lg p-4 rounded-lg w-72 border border-gray-200 z-50">
@@ -552,6 +566,134 @@ export default function AdminPage() {
           </div>
         </div>
       </div>
+
+      {showChatAssistant && (
+  <div className="fixed bottom-4 right-4 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-300 dark:border-gray-600 z-50">
+    <div className="flex justify-between items-center bg-blue-600 dark:bg-blue-800 text-white p-3 rounded-t-lg">
+      <h3 className="font-semibold">Department Assistant</h3>
+      <button 
+        onClick={() => setShowChatAssistant(false)} 
+        className="text-white hover:text-gray-200"
+      >
+        <FontAwesomeIcon icon={faTimes} />
+      </button>
+    </div>
+    
+    <div className="p-4 h-96 overflow-y-auto">
+      <div className="mb-4">
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+          Select Department:
+        </label>
+        <select
+          value={selectedChatDepartment}
+          onChange={(e) => setSelectedChatDepartment(e.target.value)}
+          className="w-full p-2 border rounded-md bg-white dark:bg-gray-700 dark:text-white"
+        >
+          <option value="Healthcare Ministry">Healthcare Ministry</option>
+          <option value="Police">Police</option>
+          <option value="Public Works Department (PWD)">PWD</option>
+          <option value="Food Quality Ministry">Food Quality Ministry</option>
+          <option value="Cleaning and Welfare Ministry">Cleaning and Welfare</option>
+          <option value="Traffic Department">Traffic Department</option>
+        </select>
+      </div>
+      
+      <div className="space-y-3 mb-4">
+        {chatMessages.map((msg, index) => (
+          <div 
+            key={index} 
+            className={`p-3 rounded-lg ${msg.sender === 'user' 
+              ? 'bg-blue-100 dark:bg-blue-900 ml-auto max-w-xs' 
+              : 'bg-gray-100 dark:bg-gray-700 mr-auto max-w-xs'}`}
+          >
+            {msg.text}
+          </div>
+        ))}
+        {isLoading && (
+          <div className="bg-gray-100 dark:bg-gray-700 p-3 rounded-lg mr-auto max-w-xs">
+            <div className="flex space-x-2">
+              <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce"></div>
+              <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{animationDelay: '0.2s'}}></div>
+              <div className="w-2 h-2 rounded-full bg-gray-400 animate-bounce" style={{animationDelay: '0.4s'}}></div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+    
+    <div className="p-3 border-t border-gray-300 dark:border-gray-600">
+    <form 
+  onSubmit={async (e) => {
+    e.preventDefault();
+    if (!currentMessage.trim()) return;
+    
+    // Add user message to chat
+    const userMessage = { sender: 'user', text: currentMessage };
+    setChatMessages([...chatMessages, userMessage]);
+    setCurrentMessage("");
+    setIsLoading(true);
+    
+    try {
+      // Call your Flask API
+      const response = await fetch('http://localhost:5000/ask', {  // Make sure this matches your Flask server URL
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          department: selectedChatDepartment,
+          question: currentMessage
+        }),
+      });
+      
+      // First check if the response is JSON
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Expected JSON but got: ${text.substring(0, 100)}...`);
+      }
+      
+      const data = await response.json();
+      
+      if (response.ok) {
+        setChatMessages(prev => [...prev, { sender: 'assistant', text: data.answer }]);
+      } else {
+        setChatMessages(prev => [...prev, { 
+          sender: 'assistant', 
+          text: `Error: ${data.error || 'Failed to get response'}` 
+        }]);
+      }
+    } catch (error) {
+      console.error('API call failed:', error);
+      setChatMessages(prev => [...prev, { 
+        sender: 'assistant', 
+        text: `Error connecting to assistant: ${error.message}`
+      }]);
+    } finally {
+      setIsLoading(false);
+    }
+  }}
+  className="flex"
+>
+        <input
+          type="text"
+          value={currentMessage}
+          onChange={(e) => setCurrentMessage(e.target.value)}
+          placeholder="Ask about department procedures..."
+          className="flex-grow p-2 border rounded-l-md focus:outline-none focus:ring-1 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+          disabled={isLoading}
+        />
+        <button
+          type="submit"
+          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-r-md disabled:opacity-50"
+          disabled={isLoading || !currentMessage.trim()}
+        >
+          Send
+        </button>
+      </form>
+    </div>
+  </div>
+)}
 
       {/* Complaints Table */}
       <div className="mt-6 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg overflow-x-auto">
