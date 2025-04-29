@@ -12,6 +12,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./com
 import { Label } from "./components/ui/label";
 import { useNavigate } from "react-router-dom";
 
+// Department keywords to match against
+const DEPARTMENT_KEYWORDS = ['Healthcare', 'Police', 'PublicWorks', 'FoodQuality', 'Cleaning', 'Traffic'];
+
 const categories = ["Corruption", "Crime", "Electricity Issue", "Public Transport", "Road Maintenance", "Water Supply"];
 
 const subcategories = [
@@ -39,6 +42,21 @@ export default function ComplaintPage() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
+  // Function to match department from API response
+  const matchDepartment = (text) => {
+    if (!text) return "Unknown Department";
+    
+    // Convert text to lowercase for case-insensitive matching
+    const lowerText = text.toLowerCase();
+    
+    // Find the first keyword that appears in the text
+    const matchedKeyword = DEPARTMENT_KEYWORDS.find(keyword => 
+      lowerText.includes(keyword.toLowerCase())
+    );
+    
+    return matchedKeyword || "Unknown Department";
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -46,7 +64,6 @@ export default function ComplaintPage() {
     setPredictedTime(null);
     setError("");
 
-    // Validate that either image or description is provided
     if (!image && !complaint.trim()) {
       setError("Please provide either a description or upload an image");
       setLoading(false);
@@ -66,14 +83,11 @@ export default function ComplaintPage() {
         imageCaption = imageRes.data.caption;
       }
 
-      // If no description but image exists, use image caption as complaint
       const complaintText = complaint.trim() ? complaint : imageCaption;
-
-      // Send complaint data
       const res = await axios.post("http://localhost:5000/complaint", { complaint: complaintText });
 
-      const departmentMatch = res.data.department.match(/registered with (.*?) and/i);
-      const department = departmentMatch ? departmentMatch[1] : "Unknown Department";
+      // Use the new matchDepartment function instead of regex
+      const department = matchDepartment(res.data.department);
 
       const finalCategory = category === "" ? res.data.Category : category;
       const finalSubCategory = subcategory === "" ? res.data.Subcategory : subcategory;
@@ -129,7 +143,6 @@ export default function ComplaintPage() {
         RemainingDays: predictRes.data.predicted_resolution_time,
       });
 
-      // Redirect to Response Page with Data
       navigate("/response", { state: responseData });
     } catch (error) {
       console.error("Error submitting complaint", error);
@@ -246,7 +259,7 @@ export default function ComplaintPage() {
                 </Label>
                 <Textarea
                   id="complaint"
-                  placeholder={image ? "Optional description (you've uploaded an image)" : "Describe your complaint in detail..."}
+                  placeholder={"Describe your complaint in detail..."}
                   value={complaint}
                   onChange={(e) => setComplaint(e.target.value)}
                   rows={4}

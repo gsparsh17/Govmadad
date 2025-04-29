@@ -99,10 +99,11 @@ urgency_prompt = ChatPromptTemplate.from_template(
 query_prompt = ChatPromptTemplate.from_template(
     """
     You are a complaint assistant. Your task is to categorize user complaints into the following departments:
-    Healthcare Ministry, Police, Public Works Department (PWD), Food Quality Ministry, Cleaning & Welfare Ministry, or Traffic Department.
+    Healthcare, Police, PublicWorks, FoodQuality, Cleaning, or Traffic.
     Also analyze the state of the complaint to declare it as an emergency and if it needs to be, tell the user it is an emergency complaint.
     Keep it short, about 50 words.
-    Based on the user's complaint, tell them which department it has been assigned to and respond with:
+    Based on the user's complaint, tell them which department it has been assigned to and respond with (Dont use "the" before department name, just use department name from the list without any space):
+    'Healthcare', 'Police', 'PublicWorks', 'FoodQuality', 'Cleaning', or 'Traffic'.
     'Your complaint is registered with "Department name" and will be attended to shortly.'
     Complaint: {input}
     """
@@ -176,11 +177,12 @@ def fetch_and_save_data():
     docs = db.collection(u"complaints").stream()
     rows = [doc.to_dict() for doc in docs]
     df = pd.DataFrame(rows)
+    print(f"📥 Downloaded {len(df)} records from Firebase.")
     df.to_csv(CSV_PATH, index=False)
     return df
 
 # Load the main CSV into memory (once)
-if not os.path.exists(CSV_PATH):
+if os.path.exists(CSV_PATH):
     print("📥 Downloading data from Firebase...")
     df_main = fetch_and_save_data()
 else:
@@ -230,6 +232,7 @@ def handle_complaint():
         return jsonify({"error": "Complaint text is required"}), 400
     
     department, urgent, category, subcategory = process_complaint(complaint)
+    print(f"Department: {department}, Urgent: {urgent}, Category: {category}, Subcategory: {subcategory}")
     return jsonify({
         "department": department,
         "urgent": urgent,
@@ -336,7 +339,7 @@ def predict():
         # Convert input to DataFrame
         input_data = pd.DataFrame([data])
         
-        print(f"Processed input data: {input_data}")
+        # print(f"Processed input data: {input_data}")
         
         # Ensure required fields exist
         required_features = ["category", "subcategory", "pincode"]
@@ -345,8 +348,8 @@ def predict():
                 return jsonify({"error": f"Missing feature: {feature}"}), 400
             
         # Check available categories and subcategories from encoders
-        print(f"Available categories in encoder: {category_encoder.classes_}")
-        print(f"Available subcategories in encoder: {subcategory_encoder.classes_}")
+        # print(f"Available categories in encoder: {category_encoder.classes_}")
+        # print(f"Available subcategories in encoder: {subcategory_encoder.classes_}")
 
         # Convert categorical data to numeric if necessary
         try:

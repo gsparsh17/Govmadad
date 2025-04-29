@@ -23,7 +23,7 @@ export default function HomePage() {
 
       {/* Main Content */}
       <main className="flex flex-col items-center justify-center flex-grow px-4">
-        <div className="glass-effect p-10 rounded-lg shadow-xl max-w-2xl text-center bg-opacity-90 backdrop-blur-lg">
+        <div className="glass-effect p-10 rounded-lg shadow-xl max-w-2x text-center bg-white backdrop-blur-lg">
           <h2 className="text-3xl font-semibold">📢 Welcome to the Official Complaint Portal</h2>
           <p className="text-lg mt-2">Submit and track complaints with ease.</p>
 
