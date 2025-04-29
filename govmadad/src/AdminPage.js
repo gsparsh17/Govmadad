@@ -307,7 +307,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
 
   return (
     <div className={`${darkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-900"} min-h-screen p-6`}>
-<header className="bg-blue-900 text-white p-4 shadow-lg flex justify-between items-center rounded-lg">
+<header className="bg-blue-500 text-white p-4 shadow-lg flex justify-between items-center rounded-lg">
   <h1 className="text-xl font-bold tracking-wide">Complaint Management Dashboard</h1>
   <div className="flex items-center space-x-3">
     <button 
@@ -371,7 +371,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
         {/* Summary Cards */}
-        <div className="bg-blue-600 text-white p-4 rounded-lg shadow-lg">
+        <div className="bg-blue-500 text-white p-4 rounded-lg shadow-lg">
           <h3 className="font-medium">Total Complaints</h3>
           <p className="text-3xl font-bold">{complaints.length}</p>
         </div>
@@ -510,7 +510,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
           <div className="mt-6 flex justify-between items-center">
             <button
               onClick={generateReport}
-              className="bg-blue-600 text-white px-4 py-2 rounded-md shadow-md hover:bg-blue-700 flex items-center"
+              className="bg-blue-500 text-white px-4 py-2 rounded-md shadow-md hover:bg-blue-700 flex items-center"
             >
               <FontAwesomeIcon icon={faChartBar} className="mr-2" />
               Generate Report
@@ -605,7 +605,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
       {showChatAssistant && (
   <div className="fixed bottom-4 right-4 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-300 dark:border-gray-600 z-50 flex flex-col" style={{ height: '600px' }}>
     {/* Header */}
-    <div className="flex justify-between items-center bg-blue-600 dark:bg-blue-800 text-white p-3 rounded-t-lg">
+    <div className="flex justify-between items-center bg-blue-500 dark:bg-blue-800 text-white p-3 rounded-t-lg">
       <h3 className="font-semibold">Department Assistant</h3>
       <button 
         onClick={() => setShowChatAssistant(false)} 
@@ -620,7 +620,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
       {chatMessages.length === 0 ? (
         // Welcome Screen
         <div className="flex flex-col items-center justify-center h-full text-center">
-          <div className="bg-blue-100 dark:bg-blue-900 p-4 rounded-full mb-4">
+          <div className="bg-blue-100 dark:bg-blue-500 p-4 rounded-full mb-4">
             <FontAwesomeIcon icon={faRobot} className="text-blue-600 dark:text-blue-300 text-4xl" />
           </div>
           <h3 className="text-xl font-semibold mb-2">Welcome, Department Official!</h3>

@@ -1,7 +1,7 @@
 import React from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
-import { AlertCircle, CheckCircle, Clock, Image, Tag, Bookmark } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock, Image, Tag, Bookmark, Target } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Button } from "./components/ui/button";
 
@@ -30,7 +30,19 @@ export default function ResponsePage() {
             <CardTitle className="text-2xl font-bold text-center">📜 Complaint Status</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+
+            {/* Complaint ID */}
+  <p className="flex items-center justify-center">
+    <strong className="mr-2 text-center">Complaint ID:</strong> {response.complaintId}
+  </p>
   <p className="text-gray-700 dark:text-gray-300 font-semibold">{response.response}</p>
+    
+  {response.complaint && (
+    <p className="flex items-center">
+      <Target className="w-6 h-6 text-red-600 dark:text-red-400 mr-2"/>
+      <strong className="mr-2">Complaint:</strong> {response.complaint}
+    </p>
+  )}
 
   {/* Department */}
   <p className="flex items-center">
@@ -78,7 +90,7 @@ export default function ResponsePage() {
   {/* Image Caption (if available) */}
   {response.imageCaption && (
     <p className="flex items-center">
-      <Image className="w-4 h-4 text-gray-600 dark:text-gray-300 mr-2" />
+      <Image className="w-4 h-4 text-orange-600 dark:text-gray-300 mr-2" />
       <strong>Image Caption:</strong> {response.imageCaption}
     </p>
   )}

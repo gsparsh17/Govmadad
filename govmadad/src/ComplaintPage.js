@@ -57,6 +57,10 @@ export default function ComplaintPage() {
     return matchedKeyword || "Unknown Department";
   };
 
+  const generateComplaintId = () => {
+    return Math.floor(10000000 + Math.random() * 90000000).toString(); // Generates random 8-digit number
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -83,7 +87,15 @@ export default function ComplaintPage() {
         imageCaption = imageRes.data.caption;
       }
 
-      const complaintText = complaint.trim() ? complaint : imageCaption;
+      let complaintText = '';
+
+        if (complaint.trim() && imageCaption) {
+          complaintText = `${complaint.trim()} ${imageCaption}`;
+        } else if (complaint.trim()) {
+          complaintText = complaint.trim();
+        } else if (imageCaption) {
+          complaintText = imageCaption;
+        }
       const res = await axios.post("http://localhost:5000/complaint", { complaint: complaintText });
 
       // Use the new matchDepartment function instead of regex
@@ -113,17 +125,42 @@ export default function ComplaintPage() {
         pincode: String(pincode),
       });
 
-      const responseData = {
-        response: res.data.department,
-        department,
-        urgent: res.data.urgent,
-        category: finalCategory1,
-        subcategory: finalSubCategory1,
-        imageCaption,
-        predictedTime: predictRes.data.predicted_resolution_time,
-      };
+      const timeString = predictRes.data.predicted_resolution_time;
+const numericValue = parseInt(timeString); // Extracts 33 from "33 days"
 
+console.log("Parsed numeric value:", numericValue);
+
+let finalPredictedTime;
+if (isNaN(numericValue)) {
+  console.warn("Couldn't parse prediction time, using default value");
+  finalPredictedTime = 7; // Default fallback
+} else {
+  // Apply your business logic
+  finalPredictedTime = numericValue > 10 ? numericValue % 10 : numericValue;
+}
+
+// Set the state (if you need it for display)
+setPredictedTime(finalPredictedTime);
+
+const complaintId = generateComplaintId();
+
+const responseData = {
+  response: res.data.department,
+  complaintId,
+  complaint: complaintText,
+  pincode,
+  department,
+  urgent: res.data.urgent,
+  category: finalCategory1,
+  subcategory: finalSubCategory1,
+  imageCaption,
+  predictedTime: `${finalPredictedTime} days`, // Use the calculated value here
+};
+  
+      console.log(responseData);
+  
       await addDoc(collection(db, "complaints"), {
+        ComplaintId: complaintId,
         Complaint: complaintText,
         Category: finalCategory1,
         Subcategory: finalSubCategory1,
@@ -139,8 +176,8 @@ export default function ComplaintPage() {
         ImageCaption: imageCaption,
         FiledBy: "Fetched From UID",
         ComplaintDate: new Date(),
-        PredictedTime: predictRes.data.predicted_resolution_time,
-        RemainingDays: predictRes.data.predicted_resolution_time,
+        PredictedTime: `${finalPredictedTime} days`,
+        RemainingDays: finalPredictedTime,
       });
 
       navigate("/response", { state: responseData });
