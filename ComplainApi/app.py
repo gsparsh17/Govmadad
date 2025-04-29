@@ -5,10 +5,13 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from langchain.schema import Document
 from langchain_groq import ChatGroq
-from langchain.chains import RetrievalQA, LLMChain
+from langchain.chains import RetrievalQA
 from langchain_community.vectorstores import FAISS
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import PromptTemplate, ChatPromptTemplate
+from langchain_core.runnables import RunnablePassthrough
+from langchain_core.output_parsers import StrOutputParser
+from langchain_core.documents import Document
 from transformers import BlipProcessor, BlipForConditionalGeneration
 from PIL import Image
 from dotenv import load_dotenv
@@ -23,6 +26,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import io
+import logging
 import base64
 import nltk
 import math
@@ -34,6 +38,8 @@ cred = credentials.Certificate("govmadad-firebase-adminsdk-fbsvc-8999227f8b.json
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 CSV_PATH = "complaints.csv"
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 # matplotlib.use('Agg')
@@ -173,25 +179,122 @@ def generate_caption(image_path):
 # Convert DataFrame to Markdown
 
 # Load all data from Firebase and save as permanent CSV
-def fetch_and_save_data():
-    docs = db.collection(u"complaints").stream()
-    rows = [doc.to_dict() for doc in docs]
-    df = pd.DataFrame(rows)
-    print(f"📥 Downloaded {len(df)} records from Firebase.")
-    df.to_csv(CSV_PATH, index=False)
-    return df
+# def fetch_and_save_data():
+#     docs = db.collection(u"complaints").stream()
+#     rows = [doc.to_dict() for doc in docs]
+#     df = pd.DataFrame(rows)
+#     print(f"📥 Downloaded {len(df)} records from Firebase.")
+#     df.to_csv(CSV_PATH, index=False)
+#     return df
+
+def fetch_data_from_firebase(collection_name):
+    """Fetches all documents from a specified Firestore collection."""
+    logger.info(f"Fetching data from Firebase collection: {collection_name}")
+    try:
+        docs_ref = db.collection(collection_name)
+        docs = docs_ref.stream()
+        all_data = []
+        count = 0
+        for doc in docs:
+            data = doc.to_dict()
+            if data: # Ensure document is not empty
+                data['id'] = doc.id # Add the document ID
+                all_data.append(data)
+                count += 1
+        logger.info(f"Fetched {count} documents.")
+        if not all_data:
+            logger.warning(f"No data found in collection '{collection_name}'.")
+        return all_data
+    except Exception as e:
+        logger.error(f"Error fetching data from Firebase: {e}")
+        return [] # Return empty list on error
+
+def transform_row_to_text(row):
+    """Converts a dictionary (Firestore row) into a formatted text string."""
+    # Ensure all values are strings for consistency
+    # Handle potential None values
+    parts = [f"{k.replace('_', ' ').capitalize()}: {str(v)}" for k, v in row.items() if k != 'id' and v is not None]
+    return f"Record ID: {row.get('id', 'N/A')}. " + ". ".join(parts)
+
+vectorstore = None
+rag_chain = None
+
+def initialize_rag_pipeline():
+    """Fetches data, creates vector store, and builds the RAG chain."""
+    global vectorstore, rag_chain
+
+    # --- Fetch and Prepare Data ---
+    # IMPORTANT: Replace 'your_collection_name' with your actual Firestore collection name
+    firebase_collection = 'complaints' # <<< REPLACE THIS
+    all_data = fetch_data_from_firebase(firebase_collection)
+
+    if not all_data:
+        logger.error("No data fetched from Firebase. RAG pipeline cannot be initialized.")
+        return False # Indicate failure
+
+    # Prepare Langchain Document objects
+    documents = []
+    for row in all_data:
+        text_content = transform_row_to_text(row)
+        # Add Firebase ID or other relevant info as metadata
+        metadata = {"source_firebase_id": row.get('id', 'N/A')}
+        documents.append(Document(page_content=text_content, metadata=metadata))
+
+    logger.info(f"Created {len(documents)} LangChain documents.")
+    if not documents:
+        logger.error("No documents created for vector store. RAG pipeline cannot be initialized.")
+        return False # Indicate failure
+
+    # --- Create FAISS Vector Store ---
+    logger.info("Creating FAISS vector store...")
+    try:
+        # FAISS.from_documents handles embedding generation internally
+        vectorstore = FAISS.from_documents(documents, embedding_model)
+        logger.info("FAISS vector store created successfully.")
+    except Exception as e:
+        logger.error(f"Error creating FAISS vector store: {e}")
+        # Consider potential API rate limits or key errors here
+        return False # Indicate failure
+
+    # --- Create Retriever ---
+    # Fetches relevant documents from the vector store based on the query
+    # search_kwargs={'k': 3} retrieves the top 3 most relevant documents
+    retriever = vectorstore.as_retriever(search_kwargs={'k': 3})
+    logger.info("Retriever created.")
+
+    # --- Define the Prompt Template ---
+    template = """
+You are an assistant for question-answering tasks based on complaint records.
+Use ONLY the following pieces of retrieved context (complaint records) to answer the question.
+If exact information is not given then analyse the context and give appropriate answer.
+Do not make up information. Be concise and stick to the facts presented in the context.
+Keep the answer to a maximum of three sentences.
+
+Context:
+{context}
+
+Question:
+{question}
+
+Answer:
+"""
+    prompt = PromptTemplate.from_template(template)
+    logger.info("Prompt template defined.")
+
+    # --- Build the RAG Chain using LangChain Expression Language (LCEL) ---
+    rag_chain = (
+        {"context": retriever, "question": RunnablePassthrough()}
+        | prompt
+        | llm
+        | StrOutputParser()
+    )
+    logger.info("RAG chain built successfully.")
+    return True
 
 # Load the main CSV into memory (once)
-if os.path.exists(CSV_PATH):
-    print("📥 Downloading data from Firebase...")
-    df_main = fetch_and_save_data()
-else:
-    df_main = pd.read_csv(CSV_PATH)
-    print("📂 Loaded local CSV.")
-
-# Filter by department and create LangChain document
-
-
+# if os.path.exists(CSV_PATH):
+#     print("📥 Downloading data from Firebase...")
+#     df_main = fetch_and_save_data()
 
 nltk.download('vader_lexicon')
 sid = SentimentIntensityAnalyzer()
@@ -265,66 +368,42 @@ def handle_image_caption():
 
 @app.route('/ask', methods=['POST'])
 def ask():
-    data = request.get_json()
+    """API endpoint to ask a question to the RAG chain."""
+    initialize_rag_pipeline() 
+    global rag_chain
 
-    if data is None:
-        return jsonify({"error": "Invalid JSON received"}), 400
+    if rag_chain is None:
+        logger.error("RAG chain is not initialized.")
+        return jsonify({"error": "RAG pipeline not ready. Check server logs."}), 500
 
-    department = data.get('department')
+    data = request.json
+    if not data or 'question' not in data:
+        logger.warning("Received invalid request data for /ask.")
+        return jsonify({"error": "Missing 'question' in request body"}), 400
+
     question = data.get('question')
+    if not isinstance(question, str) or not question.strip():
+        logger.warning("Received empty or invalid question for /ask.")
+        return jsonify({"error": "Question must be a non-empty string"}), 400
 
-    if not department or not question:
-        return jsonify({"error": "Provide both 'department' and 'question'"}), 400
+    logger.info(f"Received question: {question}")
 
     try:
-        department_df = df_main[df_main['Department'].str.lower() == department.lower()]
-        
-        if department_df.empty:
-            return jsonify({"error": f"No complaints found for department '{department}'"}), 404
-
-        docs = [Document(page_content=row['Complaint']) for idx, row in department_df.iterrows()]
-
-        vectorstore = FAISS.from_documents(
-            docs,
-            GoogleGenerativeAIEmbeddings(model="models/embedding-001")
-        )
-        retriever = vectorstore.as_retriever()
-
-        # Manually retrieve relevant documents
-        retrieved_docs = retriever.get_relevant_documents(question)
-        context = "\n".join([doc.page_content for doc in retrieved_docs]) if retrieved_docs else "No relevant complaints found."
-
-        # You can pick top complaint for "complaint" variable
-        top_complaint = retrieved_docs[0].page_content if retrieved_docs else "No matching complaint found."
-
-        # Now manually create a LLMChain with your custom prompt
-        chain = LLMChain(
-            llm=llm,
-            prompt=chat_bot_prompt
-        )
-
-        # Run the chain with all needed inputs
-        answer = chain.invoke({
-            "department": department,
-            "complaint": top_complaint,
-            "context": context
-        })
-
-        return jsonify({"answer": answer["text"]})
+        # Invoke the pre-built RAG chain
+        answer = rag_chain.invoke(question)
+        logger.info(f"Generated answer: {answer}")
+        return jsonify({"answer": answer})
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"Error invoking RAG chain: {e}", exc_info=True) # Log stack trace
+        return jsonify({"error": "An internal error occurred while processing the question."}), 500
 
 
-
-
-
-
-@app.route('/download_csv', methods=['GET'])
-def download_csv():
-    if not os.path.exists(CSV_PATH):
-        return jsonify({"error": "CSV not available"}), 404
-    return send_file(CSV_PATH, mimetype='text/csv', as_attachment=True, download_name='complaints.csv')
+# @app.route('/download_csv', methods=['GET'])
+# def download_csv():
+#     if not os.path.exists(CSV_PATH):
+#         return jsonify({"error": "CSV not available"}), 404
+#     return send_file(CSV_PATH, mimetype='text/csv', as_attachment=True, download_name='complaints.csv')
 
 
 @app.route('/predict', methods=['POST'])
