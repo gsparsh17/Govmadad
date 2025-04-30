@@ -237,6 +237,7 @@ useEffect(() => {
       doc.text(`Urgent: ${deptComplaints.filter(c => c.Urgency === "YES").length}`, 14, 61);
       
       // Status distribution chart placeholder - smaller
+      doc.addPage();
       doc.setFontSize(8);
       doc.text("[Status Distribution Chart]", 100, 45, { maxWidth: 80 });
       
