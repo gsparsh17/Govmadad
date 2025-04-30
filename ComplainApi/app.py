@@ -189,6 +189,9 @@ def generate_caption(image_path):
 
 def fetch_data_from_firebase(collection_name):
     """Fetches all documents from a specified Firestore collection."""
+    if not db:
+        logger.error("Firestore client is not available.")
+        return []
     logger.info(f"Fetching data from Firebase collection: {collection_name}")
     try:
         docs_ref = db.collection(collection_name)
@@ -206,22 +209,36 @@ def fetch_data_from_firebase(collection_name):
             logger.warning(f"No data found in collection '{collection_name}'.")
         return all_data
     except Exception as e:
-        logger.error(f"Error fetching data from Firebase: {e}")
+        logger.error(f"Error fetching data from Firebase: {e}", exc_info=True)
         return [] # Return empty list on error
 
+# --- Data Transformation ---
 def transform_row_to_text(row):
     """Converts a dictionary (Firestore row) into a formatted text string."""
     # Ensure all values are strings for consistency
     # Handle potential None values
     parts = [f"{k.replace('_', ' ').capitalize()}: {str(v)}" for k, v in row.items() if k != 'id' and v is not None]
+    # Ensure consistent ordering for potential caching benefits (optional)
+    parts.sort()
     return f"Record ID: {row.get('id', 'N/A')}. " + ". ".join(parts)
 
+# --- Global variables for RAG components ---
+# These will be initialized once at startup
 vectorstore = None
 rag_chain = None
 
+# --- RAG Pipeline Initialization ---
 def initialize_rag_pipeline():
-    """Fetches data, creates vector store, and builds the RAG chain."""
+    """
+    Fetches data, creates vector store, and builds the RAG chain.
+    This should be called once at application startup.
+    """
     global vectorstore, rag_chain
+
+    # Ensure models are ready
+    if not embedding_model or not llm:
+         logger.error("Embedding model or LLM not initialized. Cannot build RAG pipeline.")
+         return False
 
     # --- Fetch and Prepare Data ---
     # IMPORTANT: Replace 'your_collection_name' with your actual Firestore collection name
@@ -235,10 +252,14 @@ def initialize_rag_pipeline():
     # Prepare Langchain Document objects
     documents = []
     for row in all_data:
-        text_content = transform_row_to_text(row)
-        # Add Firebase ID or other relevant info as metadata
-        metadata = {"source_firebase_id": row.get('id', 'N/A')}
-        documents.append(Document(page_content=text_content, metadata=metadata))
+        try:
+            text_content = transform_row_to_text(row)
+            # Add Firebase ID or other relevant info as metadata
+            metadata = {"source_firebase_id": row.get('id', 'N/A')}
+            documents.append(Document(page_content=text_content, metadata=metadata))
+        except Exception as e:
+            logger.error(f"Error transforming row {row.get('id', 'N/A')} to Document: {e}")
+            # Decide if you want to skip this row or stop initialization
 
     logger.info(f"Created {len(documents)} LangChain documents.")
     if not documents:
@@ -249,17 +270,19 @@ def initialize_rag_pipeline():
     logger.info("Creating FAISS vector store...")
     try:
         # FAISS.from_documents handles embedding generation internally
+        # Ensure embedding_model is available
         vectorstore = FAISS.from_documents(documents, embedding_model)
         logger.info("FAISS vector store created successfully.")
     except Exception as e:
-        logger.error(f"Error creating FAISS vector store: {e}")
+        logger.error(f"Error creating FAISS vector store: {e}", exc_info=True)
         # Consider potential API rate limits or key errors here
+        vectorstore = None # Ensure vectorstore is None on failure
         return False # Indicate failure
 
     # --- Create Retriever ---
     # Fetches relevant documents from the vector store based on the query
     # search_kwargs={'k': 3} retrieves the top 3 most relevant documents
-    retriever = vectorstore.as_retriever(search_kwargs={'k': 3})
+    retriever = vectorstore.as_retriever(search_kwargs={'k':25})
     logger.info("Retriever created.")
 
     # --- Define the Prompt Template ---
@@ -282,14 +305,31 @@ Answer:
     logger.info("Prompt template defined.")
 
     # --- Build the RAG Chain using LangChain Expression Language (LCEL) ---
-    rag_chain = (
-        {"context": retriever, "question": RunnablePassthrough()}
-        | prompt
-        | llm
-        | StrOutputParser()
-    )
-    logger.info("RAG chain built successfully.")
-    return True
+    # Ensure llm is available
+    try:
+        rag_chain = (
+            {"context": retriever, "question": RunnablePassthrough()}
+            | prompt
+            | llm
+            | StrOutputParser()
+        )
+        logger.info("RAG chain built successfully.")
+        return True # Indicate success
+    except Exception as e:
+        logger.error(f"Error building RAG chain: {e}", exc_info=True)
+        rag_chain = None # Ensure chain is None on failure
+        return False # Indicate failure
+
+# --- Initialize RAG Pipeline at Application Startup ---
+logger.info("Attempting to initialize RAG pipeline at startup...")
+initialization_successful = initialize_rag_pipeline()
+if not initialization_successful:
+    logger.error("----------------------------------------------------")
+    logger.error("RAG Pipeline initialization FAILED. The /ask endpoint will not work.")
+    logger.error("Check logs above for specific errors (Firebase connection, data fetching, embedding/LLM setup, vector store creation).")
+    logger.error("----------------------------------------------------")
+else:
+    logger.info("RAG Pipeline initialized successfully.")
 
 # Load the main CSV into memory (once)
 # if os.path.exists(CSV_PATH):
@@ -369,13 +409,16 @@ def handle_image_caption():
 @app.route('/ask', methods=['POST'])
 def ask():
     """API endpoint to ask a question to the RAG chain."""
-    initialize_rag_pipeline() 
-    global rag_chain
+    # REMOVED: initialize_rag_pipeline() call - It now runs only at startup.
+    global rag_chain # Access the globally initialized chain
 
+    # Check if the RAG chain was successfully initialized at startup
     if rag_chain is None:
-        logger.error("RAG chain is not initialized.")
-        return jsonify({"error": "RAG pipeline not ready. Check server logs."}), 500
+        logger.error("RAG chain is not initialized (initialization failed at startup). Cannot process request.")
+        # Return a 503 Service Unavailable error as the service is not ready
+        return jsonify({"error": "RAG pipeline is not ready. Initialization failed at startup. Please check server logs."}), 503
 
+    # --- Request Validation ---
     data = request.json
     if not data or 'question' not in data:
         logger.warning("Received invalid request data for /ask.")
@@ -388,6 +431,7 @@ def ask():
 
     logger.info(f"Received question: {question}")
 
+    # --- Invoke RAG Chain ---
     try:
         # Invoke the pre-built RAG chain
         answer = rag_chain.invoke(question)
@@ -397,6 +441,22 @@ def ask():
     except Exception as e:
         logger.error(f"Error invoking RAG chain: {e}", exc_info=True) # Log stack trace
         return jsonify({"error": "An internal error occurred while processing the question."}), 500
+
+# --- Endpoint for potential re-initialization (Optional) ---
+# You might want an endpoint to manually trigger a refresh if needed,
+# potentially protected by authentication.
+@app.route('/refresh-rag', methods=['POST'])
+def refresh_rag():
+    """Manually triggers the RAG pipeline initialization."""
+    # Add authentication/authorization here if needed
+    logger.info("Manual RAG pipeline refresh triggered.")
+    success = initialize_rag_pipeline()
+    if success:
+        logger.info("Manual RAG pipeline refresh successful.")
+        return jsonify({"message": "RAG pipeline refreshed successfully."}), 200
+    else:
+        logger.error("Manual RAG pipeline refresh failed.")
+        return jsonify({"error": "RAG pipeline refresh failed. Check server logs."}), 500
 
 
 # @app.route('/download_csv', methods=['GET'])
