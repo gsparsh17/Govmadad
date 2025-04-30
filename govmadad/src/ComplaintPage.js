@@ -30,6 +30,8 @@ const subcategories = [
 export default function ComplaintPage() {
   const [complaint, setComplaint] = useState("");
   const [image, setImage] = useState(null);
+  const [imageCaption, setImageCaption] = useState(""); // New state for image caption
+  const [isGeneratingCaption, setIsGeneratingCaption] = useState(false); // Loading state for caption generation
   const [category, setCategory] = useState("");
   const [subcategory, setSubcategory] = useState("");
   const [pincode, setPincode] = useState("");
@@ -61,136 +63,267 @@ export default function ComplaintPage() {
     return Math.floor(10000000 + Math.random() * 90000000).toString(); // Generates random 8-digit number
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setResponse(null);
-    setPredictedTime(null);
-    setError("");
+//   const handleSubmit = async (e) => {
+//     e.preventDefault();
+//     setLoading(true);
+//     setResponse(null);
+//     setPredictedTime(null);
+//     setError("");
 
-    if (!image && !complaint.trim()) {
-      setError("Please provide either a description or upload an image");
-      setLoading(false);
-      return;
-    }
+//     if (!image && !complaint.trim()) {
+//       setError("Please provide either a description or upload an image");
+//       setLoading(false);
+//       return;
+//     }
 
-    try {
-      let imageCaption = "";
-      if (image) {
-        const formData = new FormData();
-        formData.append("image", image);
+//     try {
+//       let imageCaption = "";
+//       if (image) {
+//         const formData = new FormData();
+//         formData.append("image", image);
 
-        const imageRes = await axios.post("http://localhost:5000/caption", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
+//         const imageRes = await axios.post("http://localhost:5000/caption", formData, {
+//           headers: { "Content-Type": "multipart/form-data" },
+//         });
 
-        imageCaption = imageRes.data.caption;
-      }
+//         imageCaption = imageRes.data.caption;
+//       }
 
-      let complaintText = '';
+//       let complaintText = '';
 
-        if (complaint.trim() && imageCaption) {
-          complaintText = `${complaint.trim()} ${imageCaption}`;
-        } else if (complaint.trim()) {
-          complaintText = complaint.trim();
-        } else if (imageCaption) {
-          complaintText = imageCaption;
-        }
-      const res = await axios.post("http://localhost:5000/complaint", { complaint: complaintText });
+//         if (complaint.trim() && imageCaption) {
+//           complaintText = `${complaint.trim()} ${imageCaption}`;
+//         } else if (complaint.trim()) {
+//           complaintText = complaint.trim();
+//         } else if (imageCaption) {
+//           complaintText = imageCaption;
+//         }
+//       const res = await axios.post("http://localhost:5000/complaint", { complaint: complaintText });
 
-      // Use the new matchDepartment function instead of regex
-      const department = matchDepartment(res.data.department);
+//       // Use the new matchDepartment function instead of regex
+//       const department = matchDepartment(res.data.department);
 
-      const finalCategory = category === "" ? res.data.Category : category;
-      const finalSubCategory = subcategory === "" ? res.data.Subcategory : subcategory;
+//       const finalCategory = category === "" ? res.data.Category : category;
+//       const finalSubCategory = subcategory === "" ? res.data.Subcategory : subcategory;
 
-      const extractSubcategory = (text) => {
-        const regex = new RegExp(subcategories.join("|"), "i");
-        const match = text.match(regex);
-        return match ? match[0] : "Unknown Subcategory";
-      };
+//       const extractSubcategory = (text) => {
+//         const regex = new RegExp(subcategories.join("|"), "i");
+//         const match = text.match(regex);
+//         return match ? match[0] : "Unknown Subcategory";
+//       };
       
-      const extractcategory = (text) => {
-        const regex = new RegExp(categories.join("|"), "i");
-        const match = text.match(regex);
-        return match ? match[0] : "Unknown Category";
-      };
+//       const extractcategory = (text) => {
+//         const regex = new RegExp(categories.join("|"), "i");
+//         const match = text.match(regex);
+//         return match ? match[0] : "Unknown Category";
+//       };
       
-      const finalSubCategory1 = extractSubcategory(finalSubCategory);
-      const finalCategory1 = extractcategory(finalCategory);
+//       const finalSubCategory1 = extractSubcategory(finalSubCategory);
+//       const finalCategory1 = extractcategory(finalCategory);
 
-      const predictRes = await axios.post("http://localhost:5000/predict", {
-        category: String(finalCategory1),
-        subcategory: String(finalSubCategory1),
-        pincode: String(pincode),
-      });
+//       const predictRes = await axios.post("http://localhost:5000/predict", {
+//         category: String(finalCategory1),
+//         subcategory: String(finalSubCategory1),
+//         pincode: String(pincode),
+//       });
 
-      
 
-      const timeString = predictRes.data.predicted_resolution_time||7;
-const numericValue = parseInt(timeString); // Extracts 33 from "33 days"
 
-console.log("Parsed numeric value:", numericValue);
+//       const timeString = predictRes.data.predicted_resolution_time||7;
+// const numericValue = parseInt(timeString); // Extracts 33 from "33 days"
 
-let finalPredictedTime;
-if (isNaN(numericValue)) {
-  console.warn("Couldn't parse prediction time, using default value");
-  finalPredictedTime = 7; // Default fallback
-} else {
-  // Apply your business logic
-  finalPredictedTime = numericValue > 10 ? numericValue % 10 : numericValue;
-}
+// console.log("Parsed numeric value:", numericValue);
 
-// Set the state (if you need it for display)
-setPredictedTime(finalPredictedTime);
+// let finalPredictedTime;
+// if (isNaN(numericValue)) {
+//   console.warn("Couldn't parse prediction time, using default value");
+//   finalPredictedTime = 7; // Default fallback
+// } else {
+//   // Apply your business logic
+//   finalPredictedTime = numericValue > 10 ? numericValue % 10 : numericValue;
+// }
 
-const complaintId = generateComplaintId();
+// // Set the state (if you need it for display)
+// setPredictedTime(finalPredictedTime);
 
-const responseData = {
-  response: res.data.department,
-  complaintId,
-  complaint: complaintText,
-  pincode,
-  department,
-  urgent: res.data.urgent,
-  category: finalCategory1,
-  subcategory: finalSubCategory1,
-  imageCaption,
-  predictedTime: `${finalPredictedTime} days`, // Use the calculated value here
+// const complaintId = generateComplaintId();
+
+// const responseData = {
+//   response: res.data.department,
+//   complaintId,
+//   complaint: complaintText,
+//   pincode,
+//   department,
+//   urgent: res.data.urgent,
+//   category: finalCategory1,
+//   subcategory: finalSubCategory1,
+//   imageCaption,
+//   predictedTime: `${finalPredictedTime} days`, // Use the calculated value here
+// };
+  
+//       console.log(responseData);
+  
+//       await addDoc(collection(db, "complaints"), {
+//         ComplaintId: complaintId,
+//         Complaint: complaintText,
+//         Category: finalCategory1,
+//         Subcategory: finalSubCategory1,
+//         Pincode: pincode,
+//         Area: area,
+//         Date: date,
+//         UID: uid,
+//         Status: "Pending",
+//         Response: res.data.department,
+//         Department: department,
+//         Urgency: res.data.urgent,
+//         Phone: "Fetched From UID",
+//         ImageCaption: imageCaption,
+//         FiledBy: "Fetched From UID",
+//         ComplaintDate: new Date(),
+//         PredictedTime: `${finalPredictedTime} days`,
+//         RemainingDays: finalPredictedTime,
+//       });
+
+//       navigate("/response", { state: responseData });
+//     } catch (error) {
+//       console.error("Error submitting complaint", error);
+//       // setError("Failed to submit complaint. Please try again.");
+
+//     } finally {
+//       setLoading(false);
+//     }
+//   };
+const handleImageUpload = async (file) => {
+  if (!file) return;
+  
+  setImage(file);
+  setIsGeneratingCaption(true);
+  setImageCaption(""); // Clear previous caption
+  
+  try {
+    const formData = new FormData();
+    formData.append("image", file);
+
+    const imageRes = await axios.post("http://localhost:5000/caption", formData, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+
+    setImageCaption(imageRes.data.caption || "");
+  } catch (error) {
+    console.error("Error generating caption:", error);
+    setError("Failed to generate image caption. You can still submit with just text.");
+  } finally {
+    setIsGeneratingCaption(false);
+  }
 };
-  
-      console.log(responseData);
-  
-      await addDoc(collection(db, "complaints"), {
-        ComplaintId: complaintId,
-        Complaint: complaintText,
-        Category: finalCategory1,
-        Subcategory: finalSubCategory1,
-        Pincode: pincode,
-        Area: area,
-        Date: date,
-        UID: uid,
-        Status: "Pending",
-        Response: res.data.department,
-        Department: department,
-        Urgency: res.data.urgent,
-        Phone: "Fetched From UID",
-        ImageCaption: imageCaption,
-        FiledBy: "Fetched From UID",
-        ComplaintDate: new Date(),
-        PredictedTime: `${finalPredictedTime} days`,
-        RemainingDays: finalPredictedTime,
-      });
 
-      navigate("/response", { state: responseData });
-    } catch (error) {
-      console.error("Error submitting complaint", error);
-      // setError("Failed to submit complaint. Please try again.");
+// Modified handleSubmit to use the existing imageCaption state
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  setResponse(null);
+  setPredictedTime(null);
+  setError("");
 
-    } finally {
-      setLoading(false);
+  if (!image && !complaint.trim()) {
+    setError("Please provide either a description or upload an image");
+    setLoading(false);
+    return;
+  }
+
+  try {
+    let complaintText = '';
+    
+    if (complaint.trim() && imageCaption) {
+      complaintText = `${complaint.trim()} ${imageCaption}`;
+    } else if (complaint.trim()) {
+      complaintText = complaint.trim();
+    } else if (imageCaption) {
+      complaintText = imageCaption;
     }
-  };
+
+    // Rest of your existing submission logic...
+    const res = await axios.post("http://localhost:5000/complaint", { complaint: complaintText });
+
+    const department = matchDepartment(res.data.department);
+    const finalCategory = category === "" ? res.data.Category : category;
+    const finalSubCategory = subcategory === "" ? res.data.Subcategory : subcategory;
+
+    const extractSubcategory = (text) => {
+      const regex = new RegExp(subcategories.join("|"), "i");
+      const match = text.match(regex);
+      return match ? match[0] : "Unknown Subcategory";
+    };
+    
+    const extractcategory = (text) => {
+      const regex = new RegExp(categories.join("|"), "i");
+      const match = text.match(regex);
+      return match ? match[0] : "Unknown Category";
+    };
+    
+    const finalSubCategory1 = extractSubcategory(finalSubCategory);
+    const finalCategory1 = extractcategory(finalCategory);
+
+    const predictRes = await axios.post("http://localhost:5000/predict", {
+      category: String(finalCategory1),
+      subcategory: String(finalSubCategory1),
+      pincode: String(pincode),
+    });
+
+    const timeString = predictRes.data.predicted_resolution_time||7;
+    const numericValue = parseInt(timeString);
+    let finalPredictedTime;
+    if (isNaN(numericValue)) {
+      finalPredictedTime = 7;
+    } else {
+      finalPredictedTime = numericValue > 10 ? numericValue % 10 : numericValue;
+    }
+
+    setPredictedTime(finalPredictedTime);
+    const complaintId = generateComplaintId();
+
+    const responseData = {
+      response: res.data.department,
+      complaintId,
+      complaint: complaintText,
+      pincode,
+      department,
+      urgent: res.data.urgent,
+      category: finalCategory1,
+      subcategory: finalSubCategory1,
+      imageCaption,
+      predictedTime: `${finalPredictedTime} days`,
+    };
+
+    await addDoc(collection(db, "complaints"), {
+      ComplaintId: complaintId,
+      Complaint: complaintText,
+      Category: finalCategory1,
+      Subcategory: finalSubCategory1,
+      Pincode: pincode,
+      Area: area,
+      Date: date,
+      UID: uid,
+      Status: "Pending",
+      Response: res.data.department,
+      Department: department,
+      Urgency: res.data.urgent,
+      Phone: "Fetched From UID",
+      ImageCaption: imageCaption,
+      FiledBy: "Fetched From UID",
+      ComplaintDate: new Date(),
+      PredictedTime: `${finalPredictedTime} days`,
+      RemainingDays: finalPredictedTime,
+    });
+
+    navigate("/response", { state: responseData });
+  } catch (error) {
+    console.error("Error submitting complaint", error);
+    setError("Failed to submit complaint. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-blue-400 to-blue-400 p-6">
@@ -318,20 +451,40 @@ const responseData = {
                   id="image"
                   type="file"
                   accept="image/*"
-                  onChange={(e) => {
-                    setImage(e.target.files?.[0] || null);
-                    // Clear any existing error when image is selected
-                    if (e.target.files?.[0]) setError("");
-                  }}
+                  onChange={(e) => handleImageUpload(e.target.files?.[0])}
                 />
                 {image && (
-                  <p className="text-sm text-green-600">
-                    Image selected: {image.name}
-                  </p>
+                  <div className="mt-2">
+                    <p className="text-sm text-green-600">
+                      Image selected: {image.name}
+                    </p>
+                    {isGeneratingCaption ? (
+                      <div className="flex items-center text-sm text-gray-500">
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Generating caption...
+                      </div>
+                    ) : (
+                      imageCaption && (
+                        <div className="mt-2 space-y-1">
+                          <Label htmlFor="image-caption">Generated Image Caption</Label>
+                          <Textarea
+                            id="image-caption"
+                            value={imageCaption}
+                            onChange={(e) => setImageCaption(e.target.value)}
+                            rows={2}
+                            placeholder="Edit the generated caption if needed"
+                          />
+                          <p className="text-xs text-gray-500">
+                            This caption will be combined with your complaint description
+                          </p>
+                        </div>
+                      )
+                    )}
+                  </div>
                 )}
               </div>
 
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full" disabled={loading || isGeneratingCaption}>
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
