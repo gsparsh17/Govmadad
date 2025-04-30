@@ -12,6 +12,8 @@ import { faBell, faChartBar, faTimes, faFilePdf, faComment, faRobot } from '@for
 // Register Chart.js components
 Chart.register(...registerables);
 
+const DEPARTMENT_KEYWORDS = ['Healthcare', 'Police', 'PublicWorks', 'FoodQuality', 'Cleaning', 'Traffic'];
+
 export default function AdminPage() {
   const [complaints, setComplaints] = useState([]);
   const [filteredComplaints, setFilteredComplaints] = useState([]);
@@ -31,35 +33,82 @@ const [showChatAssistant, setShowChatAssistant] = useState(false);
 const [chatMessages, setChatMessages] = useState([]);
 const [currentMessage, setCurrentMessage] = useState("");
 const [isLoading, setIsLoading] = useState(false);
-const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare Ministry");
+const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare");
 
-  useEffect(() => {
-    const fetchComplaints = () => {
-      const q = query(collection(db, "complaints"));
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const complaintsData = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-          remainingDays: calculateRemainingDays(doc.data().ComplaintDate?.toDate())
-        }));
-        setComplaints(complaintsData);
-        setFilteredComplaints(complaintsData);
-        setNotifications(complaintsData.slice(-5));
-      });
+const matchDepartment = (text) => {
+  if (!text) return "Unknown Department";
+  
+  // Convert text to lowercase for case-insensitive matching
+  const lowerText = text.toLowerCase();
+  
+  // Find the first keyword that appears in the text
+  const matchedKeyword = DEPARTMENT_KEYWORDS.find(keyword => 
+    lowerText.includes(keyword.toLowerCase())
+  );
+  
+  return matchedKeyword || "Unknown Department";
+};
 
-      return () => unsubscribe();
-    };
-
-    fetchComplaints();
-  }, []);
-
-  const calculateRemainingDays = (date) => {
-    if (!date || !isValid(date)) return 0;
-    const today = new Date();
-    const dueDate = new Date(date);
-    dueDate.setDate(dueDate.getDate() + 7); // Assuming 7 days SLA
-    return Math.max(0, Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24)));
+const calculateRemainingDays = (complaintDate, predictedTime) => {
+  if (!complaintDate || !isValid(complaintDate)) return "N/A";
+  
+  // Parse predicted time (handles both "33 days" and raw numbers)
+  const parseDays = (timeString) => {
+    if (!timeString) return null;
+    if (typeof timeString === 'number') return timeString;
+    const daysMatch = String(timeString).match(/\d+/);
+    return daysMatch ? parseInt(daysMatch[0], 10) : null;
   };
+
+  const predictedDays = parseDays(predictedTime);
+  if (!predictedDays) return "N/A";
+
+  const today = new Date();
+  const daysPassed = Math.floor((today - complaintDate) / (1000 * 60 * 60 * 24));
+  const remainingDays = Math.max(predictedDays - daysPassed, 0);
+
+  return remainingDays;
+};
+
+// Update the useEffect where you fetch complaints
+useEffect(() => {
+  const fetchComplaints = () => {
+    const q = query(collection(db, "complaints"));
+    const unsubscribe = onSnapshot(q, async (snapshot) => {
+      const complaintsData = await Promise.all(snapshot.docs.map(async (doc) => {
+        const comp = doc.data();
+        const complaintDate = comp.ComplaintDate?.toDate();
+        
+        // Calculate remaining days with both date and predicted time
+        const remainingDays = calculateRemainingDays(complaintDate, comp.PredictedTime);
+        
+        // Update Firestore if the value has changed
+        if (comp.RemainingDays !== remainingDays) {
+          try {
+            await updateDoc(doc.ref, { RemainingDays: remainingDays });
+          } catch (error) {
+            console.error("Error updating remaining days:", error);
+          }
+        }
+
+        return {
+          id: doc.id,
+          ...comp,
+          remainingDays,
+          complaintDate // Store the date object for sorting
+        };
+      }));
+
+      setComplaints(complaintsData);
+      setFilteredComplaints(complaintsData);
+      setNotifications(complaintsData.slice(-5));
+    });
+
+    return () => unsubscribe();
+  };
+
+  fetchComplaints();
+}, []);
 
   useEffect(() => {
     let filtered = complaints;
@@ -536,18 +585,25 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
             <div>
               <label className="block text-gray-700 dark:text-white font-semibold mb-1">Department:</label>
               <select
-                value={selectedDepartment}
-                onChange={(e) => setSelectedDepartment(e.target.value)}
-                className="w-full border p-2 rounded-md bg-white dark:bg-gray-700 dark:text-white"
-              >
-                <option value="All">All Departments</option>
-                <option value="Healthcare Ministry">Healthcare Ministry</option>
-                <option value="the Police Department">the Police Department</option>
-                <option value="Public Works Department (PWD)">PWD</option>
-                <option value="Food Quality Ministry">Food Quality Ministry</option>
-                <option value="Cleaning and Welfare Ministry">Cleaning and Welfare</option>
-                <option value="Traffic Department">Traffic Department</option>
-              </select>
+  value={selectedDepartment}
+  onChange={(e) => setSelectedDepartment(e.target.value)}
+  className="w-full border p-2 rounded-md bg-white dark:bg-gray-700 dark:text-white"
+>
+  <option value="All">All Departments</option>
+  {DEPARTMENT_KEYWORDS.map(dept => (
+    <option key={dept} value={dept}>
+      {
+  dept === 'Healthcare' ? 'Healthcare Ministry' :
+  dept === 'Police' ? 'Police Department' :
+  dept === 'PublicWorks' ? 'Public Works Department (PWD)' :
+  dept === 'FoodQuality' ? 'Food Quality Ministry' :
+  dept === 'Cleaning' ? 'Cleaning and Welfare Ministry' :
+  dept === 'Traffic' ? 'Traffic Department' :
+  dept
+}
+    </option>
+  ))}
+</select>
             </div>
 
             <div>
@@ -632,24 +688,31 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
               Department:
             </label>
             <select
-              value={selectedChatDepartment}
-              onChange={(e) => setSelectedChatDepartment(e.target.value)}
-              className="w-full p-2 border rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
-              disabled={chatMessages.length > 0}
-            >
-              <option value="Healthcare Ministry">Healthcare Ministry</option>
-              <option value="the Police Department">the Police Department</option>
-              <option value="Public Works Department (PWD)">PWD</option>
-              <option value="Food Quality Ministry">Food Quality Ministry</option>
-              <option value="Cleaning and Welfare Ministry">Cleaning and Welfare</option>
-              <option value="Traffic Department">Traffic Department</option>
-            </select>
+  value={selectedChatDepartment}
+  onChange={(e) => setSelectedChatDepartment(e.target.value)}
+  className="w-full p-2 border rounded-md bg-white dark:bg-gray-700 dark:text-white text-sm"
+  disabled={chatMessages.length > 0}
+>
+  {DEPARTMENT_KEYWORDS.map(dept => (
+    <option key={dept} value={dept}>
+      {
+  dept === 'Healthcare' ? 'Healthcare Ministry' :
+  dept === 'Police' ? 'Police Department' :
+  dept === 'PublicWorks' ? 'Public Works Department (PWD)' :
+  dept === 'FoodQuality' ? 'Food Quality Ministry' :
+  dept === 'Cleaning' ? 'Cleaning and Welfare Ministry' :
+  dept === 'Traffic' ? 'Traffic Department' :
+  dept
+}
+    </option>
+  ))}
+</select>
           </div>
           <div className="w-full space-y-2">
             <h4 className="font-medium text-gray-700 dark:text-gray-200">Quick Questions:</h4>
             <button
               onClick={() => {
-                setCurrentMessage("What are the complaints registered in the last few hours?");
+                setCurrentMessage(`Being a ${selectedChatDepartment} official, What are the complaints registered in the last few hours?`);
                 // setChatMessages([...chatMessages, 
                 //   { sender: 'user', text: "What are the complaints registered in the last few hours?" }
                 // ]);
@@ -660,7 +723,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
             </button>
             <button
               onClick={() => {
-                setCurrentMessage("Which complaint should I prioritize first?");
+                setCurrentMessage(`Being a ${selectedChatDepartment} official, Which complaint should I prioritize first?`);
                 // setChatMessages([...chatMessages, 
                 //   { sender: 'user', text: "Which complaint should I prioritize first?" }
                 // ]);
@@ -671,7 +734,7 @@ const [selectedChatDepartment, setSelectedChatDepartment] = useState("Healthcare
             </button>
             <button
               onClick={() => {
-                setCurrentMessage("What's on my task list for today?");
+                setCurrentMessage(`Being a ${selectedChatDepartment} official, What's on my task list for today?`);
                 // setChatMessages([...chatMessages, 
                 //   { sender: 'user', text: "What's on my task list for today?" }
                 // ]);

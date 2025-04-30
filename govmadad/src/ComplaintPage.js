@@ -125,7 +125,9 @@ export default function ComplaintPage() {
         pincode: String(pincode),
       });
 
-      const timeString = predictRes.data.predicted_resolution_time;
+      
+
+      const timeString = predictRes.data.predicted_resolution_time||7;
 const numericValue = parseInt(timeString); // Extracts 33 from "33 days"
 
 console.log("Parsed numeric value:", numericValue);
@@ -183,7 +185,8 @@ const responseData = {
       navigate("/response", { state: responseData });
     } catch (error) {
       console.error("Error submitting complaint", error);
-      setError("Failed to submit complaint. Please try again.");
+      // setError("Failed to submit complaint. Please try again.");
+
     } finally {
       setLoading(false);
     }
