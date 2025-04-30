@@ -174,27 +174,160 @@ useEffect(() => {
       return 0;
     });
 
-  const generateReport = () => {
-    const start = startOfWeek(new Date(), { weekStartsOn: 1 });
-    const end = endOfWeek(new Date(), { weekStartsOn: 1 });
-
-    const weeklyComplaints = complaints.filter((c) =>
-      isWithinInterval(new Date(c.complaintDate), { start, end })
-    );
-
-    const pending = complaints.filter((c) => c.Status === "Pending").length;
-    const solved = complaints.filter((c) => c.Status === "Solved").length;
-
-    setReportData({ 
-      pending, 
-      solved, 
-      total: complaints.length,
-      weeklyTotal: weeklyComplaints.length,
-      departmentDistribution: getDepartmentDistribution(),
-      statusDistribution: getStatusDistribution(),
-      urgencyCount: complaints.filter(c => c.Urgency === "YES").length
-    });
-  };
+    const generateDepartmentReportPDF = async () => {
+      // First, prompt the admin to select a department
+      const selectedDept = prompt("Please select a department for the report:\n\n" +
+        "1. Healthcare Ministry\n" +
+        "2. Police Department\n" +
+        "3. Public Works Department (PWD)\n" +
+        "4. Food Quality Ministry\n" +
+        "5. Cleaning and Welfare Ministry\n" +
+        "6. Traffic Department");
+    
+      if (!selectedDept) return; // User cancelled
+    
+      // Map the input to department keywords
+      let department;
+      switch (selectedDept.trim()) {
+        case "1": department = "Healthcare"; break;
+        case "2": department = "Police"; break;
+        case "3": department = "PublicWorks"; break;
+        case "4": department = "FoodQuality"; break;
+        case "5": department = "Cleaning"; break;
+        case "6": department = "Traffic"; break;
+        default:
+          alert("Invalid selection. Please enter a number between 1-6.");
+          return;
+      }
+    
+      // Filter complaints for the selected department
+      const deptComplaints = complaints.filter(c => 
+        c.Department.toLowerCase().includes(department.toLowerCase())
+      );
+    
+      if (deptComplaints.length === 0) {
+        alert(`No complaints found for ${getFullDepartmentName(department)}`);
+        return;
+      }
+    
+      // Create PDF
+      const doc = new jsPDF();
+      
+      // Add logo and header
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(18);
+      doc.text(`${getFullDepartmentName(department)} Complaints Report`, 105, 15, null, null, 'center');
+      
+      // Report metadata - more compact layout
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Generated: ${format(new Date(), "PPp")}`, 14, 25);
+      doc.text(`Total: ${deptComplaints.length} complaints`, 105, 25, null, null, 'center');
+      doc.text(`Page 1 of ${Math.ceil(deptComplaints.length / 2) + 1}`, 190, 25, null, null, 'right');
+      
+      // Summary statistics - more compact layout
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text("Summary", 14, 40);
+      
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Pending: ${deptComplaints.filter(c => c.Status === "Pending").length}`, 14, 47);
+      doc.text(`Resolved: ${deptComplaints.filter(c => c.Status === "Resolved").length}`, 14, 54);
+      doc.text(`Urgent: ${deptComplaints.filter(c => c.Urgency === "YES").length}`, 14, 61);
+      
+      // Status distribution chart placeholder - smaller
+      doc.setFontSize(8);
+      doc.text("[Status Distribution Chart]", 100, 45, { maxWidth: 80 });
+      
+      // Complaints details section - 2 per page
+      let currentPage = 1;
+      let complaintsOnPage = 0;
+      
+      for (let i = 0; i < deptComplaints.length; i++) {
+        const complaint = deptComplaints[i];
+        
+        // Add new page if needed (start new page after every 2 complaints)
+        if (complaintsOnPage >= 2) {
+          doc.addPage();
+          currentPage++;
+          complaintsOnPage = 0;
+          doc.setFontSize(10);
+          doc.text(`Page ${currentPage} of ${Math.ceil(deptComplaints.length / 2) + 1}`, 190, 15, null, null, 'right');
+        }
+        
+        // Position calculation (start at 30 for first complaint, 120 for second)
+        const yStart = 30 + (complaintsOnPage * 90);
+        
+        // Complaint header
+        doc.setFontSize(12);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Complaint #${i + 1}`, 14, yStart);
+        
+        // Complaint details - more compact layout
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "normal");
+        
+        // Description (smaller font, tighter spacing)
+        const descLines = doc.splitTextToSize(`Description: ${complaint.Complaint}`, 180);
+        doc.text(descLines, 20, yStart + 7);
+        
+        // Metadata in two columns
+        doc.text(`Status: ${complaint.Status}`, 20, yStart + 7 + (descLines.length * 4));
+        doc.text(`Urgent: ${complaint.Urgency}`, 100, yStart + 7 + (descLines.length * 4));
+        
+        doc.text(`Filed by: ${complaint.FiledBy}`, 20, yStart + 14 + (descLines.length * 4));
+        doc.text(`Contact: ${complaint.Phone}`, 100, yStart + 14 + (descLines.length * 4));
+        
+        doc.text(`Location: ${complaint.Area}, ${complaint.Pincode}`, 20, yStart + 21 + (descLines.length * 4));
+        
+        const complaintDate = isValid(complaint.ComplaintDate?.toDate()) 
+          ? format(complaint.ComplaintDate.toDate(), "PP") 
+          : "Invalid Date";
+        doc.text(`Filed: ${complaintDate}`, 20, yStart + 28 + (descLines.length * 4));
+        doc.text(`Days left: ${complaint.remainingDays}`, 100, yStart + 28 + (descLines.length * 4));
+        
+        // Response section - tighter layout
+        doc.setFont("helvetica", "bold");
+        doc.text("Response:", 20, yStart + 35 + (descLines.length * 4));
+        
+        doc.setFont("helvetica", "normal");
+        const responseText = complaint.Response || "No response yet";
+        const responseLines = doc.splitTextToSize(responseText, 180);
+        doc.text(responseLines, 20, yStart + 42 + (descLines.length * 4));
+        
+        // Add separator line only between complaints (not after last one)
+        if (complaintsOnPage < 1 && i < deptComplaints.length - 1) {
+          doc.line(14, yStart + 52 + (descLines.length * 4) + (responseLines.length * 4), 200, yStart + 52 + (descLines.length * 4) + (responseLines.length * 4));
+        }
+        
+        complaintsOnPage++;
+      }
+      
+      // Footer on all pages
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text("Confidential - For official use only", 14, 285);
+      }
+      
+      // Save the PDF
+      doc.save(`${department}_Complaints_Report_${format(new Date(), "yyyy-MM-dd")}.pdf`);
+    };
+    
+    // Helper function to get full department name
+    const getFullDepartmentName = (keyword) => {
+      switch (keyword) {
+        case 'Healthcare': return 'Healthcare Ministry';
+        case 'Police': return 'Police Department';
+        case 'PublicWorks': return 'Public Works Department (PWD)';
+        case 'FoodQuality': return 'Food Quality Ministry';
+        case 'Cleaning': return 'Cleaning and Welfare Ministry';
+        case 'Traffic': return 'Traffic Department';
+        default: return keyword;
+      }
+    };
 
   const getDepartmentDistribution = () => {
     const departments = [...new Set(complaints.map(c => c.Department))];
@@ -329,30 +462,30 @@ useEffect(() => {
     };
   };
 
-  const downloadReportPDF = () => {
-    if (!reportData) return;
+  // const downloadReportPDF = () => {
+  //   if (!reportData) return;
   
-    const doc = new jsPDF();
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("Weekly Complaints Report", 20, 20);
+  //   const doc = new jsPDF();
+  //   doc.setFont("helvetica", "bold");
+  //   doc.setFontSize(18);
+  //   doc.text("Weekly Complaints Report", 20, 20);
     
-    doc.setFontSize(12);
-    doc.text(`Total Complaints: ${reportData.total}`, 20, 40);
-    doc.text(`Weekly Complaints: ${reportData.weeklyTotal}`, 20, 50);
-    doc.text(`Pending Complaints: ${reportData.pending}`, 20, 60);
-    doc.text(`Solved Complaints: ${reportData.solved}`, 20, 70);
-    doc.text(`Urgent Complaints: ${reportData.urgencyCount}`, 20, 80);
+  //   doc.setFontSize(12);
+  //   doc.text(`Total Complaints: ${reportData.total}`, 20, 40);
+  //   doc.text(`Weekly Complaints: ${reportData.weeklyTotal}`, 20, 50);
+  //   doc.text(`Pending Complaints: ${reportData.pending}`, 20, 60);
+  //   doc.text(`Solved Complaints: ${reportData.solved}`, 20, 70);
+  //   doc.text(`Urgent Complaints: ${reportData.urgencyCount}`, 20, 80);
   
-    // Add department distribution
-    doc.setFontSize(14);
-    doc.text("Department Distribution:", 20, 100);
-    reportData.departmentDistribution.forEach((dept, index) => {
-      doc.text(`${dept.name}: ${dept.count}`, 30, 110 + (index * 10));
-    });
+  //   // Add department distribution
+  //   doc.setFontSize(14);
+  //   doc.text("Department Distribution:", 20, 100);
+  //   reportData.departmentDistribution.forEach((dept, index) => {
+  //     doc.text(`${dept.name}: ${dept.count}`, 30, 110 + (index * 10));
+  //   });
   
-    doc.save("Weekly_Complaints_Report.pdf");
-  };
+  //   doc.save("Weekly_Complaints_Report.pdf");
+  // };
 
   return (
     <div className={`${darkMode ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-900"} min-h-screen p-6`}>
@@ -378,8 +511,8 @@ useEffect(() => {
         </span>
       )}
     </button>
-    <span className="text-sm">Dark Mode</span>
-    <Switch checked={darkMode} onCheckedChange={() => setDarkMode(!darkMode)} />
+    {/* <span className="text-sm">Dark Mode</span>
+    <Switch checked={darkMode} onCheckedChange={() => setDarkMode(!darkMode)} /> */}
   </div>
 </header>
 
@@ -558,14 +691,14 @@ useEffect(() => {
 
           <div className="mt-6 flex justify-between items-center">
             <button
-              onClick={generateReport}
+              onClick={generateDepartmentReportPDF}
               className="bg-blue-500 text-white px-4 py-2 rounded-md shadow-md hover:bg-blue-700 flex items-center"
             >
               <FontAwesomeIcon icon={faChartBar} className="mr-2" />
               Generate Report
             </button>
 
-            {reportData && (
+            {/* {reportData && (
               <button
                 onClick={downloadReportPDF}
                 className="bg-green-600 text-white px-4 py-2 rounded-md shadow-md hover:bg-green-700 flex items-center"
@@ -573,7 +706,7 @@ useEffect(() => {
                 <FontAwesomeIcon icon={faFilePdf} className="mr-2" />
                 Download PDF
               </button>
-            )}
+            )} */}
           </div>
         </div>
 
